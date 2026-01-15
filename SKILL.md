@@ -11,6 +11,8 @@ Skill creation framework following PAI conventions with cherry-picked additions.
 
 **Follow:** [pai/CreateSkill.md](references/pai/CreateSkill.md) → [pai/SkillSystem.md](references/pai/SkillSystem.md)
 
+**Project-specific:** [ProjectConventions.md](references/ProjectConventions.md) — Verb+Noun naming, merge vs create decisions
+
 ## Additions
 
 ### 1. Test with Multiple Models
@@ -32,10 +34,10 @@ Keep SKILL.md under 500 lines. Use `references/` for detailed docs.
 **Example 1: Create a new skill**
 ```
 User: "Create a skill for managing invoices"
-→ Read pai/CreateSkill.md and pai/SkillSystem.md
-→ Create .claude/skills/InvoiceManager/SKILL.md
-→ Use TitleCase naming throughout
+→ Read pai/CreateSkill.md, pai/SkillSystem.md, and ProjectConventions.md
+→ Create .claude/skills/ManageInvoices/SKILL.md (Verb+Noun pattern)
 → Include USE WHEN in description
+→ Add Workflows/, references/, Tools/ directories
 → Add Examples section
 ```
 
