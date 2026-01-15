@@ -11,7 +11,7 @@ Skill creation framework following PAI conventions with cherry-picked additions.
 
 **Follow:** [pai/CreateSkill.md](references/pai/CreateSkill.md) → [pai/SkillSystem.md](references/pai/SkillSystem.md)
 
-**Project-specific:** [ProjectConventions.md](references/ProjectConventions.md) — Verb+Noun naming, merge vs create decisions
+**Naming:** [NamingConventions.md](references/NamingConventions.md) — Verb+Noun pattern, merge vs create decisions
 
 ## Additions
 

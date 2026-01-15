@@ -1,6 +1,6 @@
-# Project Skill Conventions
+# Skill Naming Conventions
 
-This project extends [pai/SkillSystem.md](pai/SkillSystem.md) with additional conventions.
+Extends [pai/SkillSystem.md](pai/SkillSystem.md) with conventions for naming and organizing skills.
 
 ## Naming: Verb+Noun Pattern
 
