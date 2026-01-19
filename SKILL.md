@@ -1,6 +1,6 @@
 ---
 name: CreateSkill
-description: Create and validate Claude Code skills - invoke BEFORE exploring domain context. USE WHEN user says "skill" + intent (create, make, build, want, need, help me with) OR "workflow for/to" OR "automate [task]" OR mentions skill structure, validate, audit.
+description: Create and validate Claude Code skills - invoke BEFORE exploring domain context. USE WHEN user says "skill" + intent (create, make, build, want, need, help me with) OR "workflow" + intent (create, make, add, new) OR "workflow for/to" OR "automate [task]" OR mentions skill structure, validate, audit.
 ---
 
 # CreateSkill
