@@ -11,6 +11,15 @@
 
 Before every commit, review staged/unstaged changes and ask: "Is this ONE logical change?"
 
+**Think deeply — apply this test:**
+> "If I were explaining these changes to someone, would I describe them as ONE thing?
+> Or would I naturally say 'and also...' or 'separately...'?"
+
+**Common trap:** Changes from one conversation/session feel like "one thing" but are often multiple logical changes. Ask yourself:
+- Did I discover something new mid-task that I then documented? → Separate commit
+- Did I fix/update something unrelated while working? → Separate commit
+- Are these changes about different concerns (e.g., schedule vs. permissions vs. documentation)? → Separate commits
+
 If multiple unrelated changes are present, use `git add -p` to separate them and commit in multiple steps.
 
 **This applies EVEN within a single file.** If one file contains multiple unrelated changes, split them using `git add -p`.
@@ -38,7 +47,7 @@ When fixing infrastructure issues or other problems mid-task, be careful not to 
 
 ⚠️ **STOP before committing and verify:**
 
-- [ ] **One logical change:** Review all modified files — are these ALL part of ONE logical change? If not, split into separate commits.
+- [ ] **One logical change:** Review all modified files — are these ALL part of ONE logical change? Apply the "and also" test: if explaining these changes requires saying "and also" or "separately," split into multiple commits.
 - [ ] **Tests pass**
 - [ ] **Plan updated** (checkboxes, counter, current step)
 - [ ] **Docs sync:** If new command/feature added → check app's `README.md`
