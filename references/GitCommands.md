@@ -80,3 +80,85 @@ git commit -m "feat(gdrive): implement feature X"
 # ❌ WRONG: Chained commands
 git add apps/gdrive/src/index.ts && git commit -m "..."
 ```
+
+## Partial Staging (Multiple Logical Changes in One File)
+
+### When to use partial staging
+
+When a single file contains changes that belong to **different logical commits**, you MUST stage them separately using patch mode or manual patches.
+
+**Signs you need partial staging:**
+- One file has both a bug fix and a new feature
+- Documentation updates mixed with code changes
+- A workflow file has both instruction changes and implementation changes
+
+### Method 1: Create a patch file for specific lines
+
+When you need to stage only specific lines from a file:
+
+```bash
+# 1. Create a patch file with only the lines you want
+cat > /tmp/partial.patch << 'PATCH'
+diff --git a/path/to/file.md b/path/to/file.md
+--- a/path/to/file.md
++++ b/path/to/file.md
+@@ -10,6 +10,8 @@ Some context line
+ Another context line
+
++The specific line(s) you want to add
++
+ More context
+PATCH
+
+# 2. Apply patch to staging area only
+git apply --cached /tmp/partial.patch
+
+# 3. Verify what's staged
+git diff --cached path/to/file.md
+
+# 4. Commit the partial change
+git commit -m "docs: add specific change"
+
+# 5. Stage and commit remaining changes
+git add path/to/file.md
+git commit -m "feat: add other changes"
+```
+
+### Method 2: Interactive staging with `git add -p`
+
+For simpler cases where hunks are already separate:
+
+```bash
+git add -p path/to/file.md
+# y = stage this hunk
+# n = skip this hunk
+# s = split hunk into smaller hunks
+# e = manually edit the hunk
+```
+
+**Note:** `git add -p` works well when changes are in different parts of the file. When changes are interleaved or in the same hunk, use Method 1 (patch file).
+
+### Example: Separating instruction changes from workflow improvements
+
+```bash
+# File has: (1) skill reactivation reminder, (2) row calculation docs
+
+# Commit 1: Stage only the skill reactivation line
+cat > /tmp/skill-reactivation.patch << 'PATCH'
+diff --git a/Workflows/Example.md b/Workflows/Example.md
+--- a/Workflows/Example.md
++++ b/Workflows/Example.md
+@@ -50,6 +50,8 @@ Some existing content
+
++> **🛑 SKILL REACTIVATION REQUIRED:** Reminder text here.
++
+ More existing content
+PATCH
+
+git apply --cached /tmp/skill-reactivation.patch
+git commit -m "docs: add skill reactivation reminder"
+
+# Commit 2: Stage remaining changes
+git add Workflows/Example.md
+git commit -m "docs: add row calculation documentation"
+```
