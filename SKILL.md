@@ -27,7 +27,7 @@ Enforces clean git practices and commit hygiene for this project.
 |------|---------|
 | File renames | `git mv` (not `mv`) |
 | File deletions | `git rm` (not `rm`) |
-| Run commands from | Repo root (`/Users/felho/dev/wbc-monthly-close`) |
+| Run commands from | Repo root (use `git rev-parse --show-toplevel`) |
 | Before staging | Always run `git status` first |
 | Staging vs committing | Separate `git add` and `git commit` commands |
 
@@ -67,4 +67,3 @@ Enforces clean git practices and commit hygiene for this project.
 
 - [GitCommands.md](references/GitCommands.md) - Detailed git command rules with examples
 - [CommitRules.md](references/CommitRules.md) - One logical change, design docs, standards
-- [CLAUDE.md Development Workflow](../../../CLAUDE.md) - Project-specific workflow config
