@@ -1,0 +1,85 @@
+---
+name: WritePrompt
+description: Create and analyze agentic prompts/slash commands. USE WHEN create prompt OR new command OR slash command OR analyze prompt OR improve prompt OR prompt structure OR workflow prompt. Guides through 7 prompt levels with proper sections.
+---
+
+# WritePrompt
+
+Framework for creating and analyzing agentic prompts following the 7-level prompt hierarchy.
+
+## Core Principle
+
+> **The prompt is THE fundamental unit of agentic engineering.**
+
+Every prompt should have the right level of complexity for its use case — no more, no less.
+
+## Workflow Routing
+
+| Workflow | Trigger | File |
+|----------|---------|------|
+| **Create** | "create prompt", "new command", "slash command for X" | `Workflows/Create.md` |
+| **Analyze** | "analyze this prompt", "review prompt", "improve prompt" | `Workflows/Analyze.md` |
+
+## The 7 Prompt Levels
+
+| Level | Name | Key Feature | When to Use |
+|-------|------|-------------|-------------|
+| 1 | High Level | Static, reusable | Simple one-shot tasks |
+| 2 | Workflow | Sequential steps with I/O | Multi-step processes |
+| 3 | Control Flow | Conditions and loops | Dynamic branching logic |
+| 4 | Delegate | Spawns subagents | Parallel or distributed work |
+| 5 | Higher Order | Accepts prompt files as input | Composable prompt systems |
+| 6 | Template Metaprompt | Creates new prompts | Prompt generation |
+| 7 | Self-Improving | Updates its own expertise | Learning systems |
+
+## Quick Section Reference
+
+**Essential sections** (most prompts need these):
+- `Metadata` — YAML frontmatter (allowed-tools, description, argument-hint, model)
+- `# Title` — Clear, action-oriented name
+- `## Purpose` — What it does and when to use it
+- `## Variables` — Dynamic ($1, $ARGUMENTS) and static values
+- `## Workflow` — Numbered steps to execute
+- `## Report` — How to present results
+
+**Advanced sections** (for complex prompts):
+- `## Instructions` — Rules, constraints, edge cases
+- `## Relevant Files` — Files to read/modify
+- `## Codebase Structure` — Directory layout context
+- `## Expertise` — Accumulated domain knowledge (Level 7)
+- `## Template` — Output format for metaprompts (Level 6)
+- `## Examples` — Usage demonstrations
+
+## Examples
+
+**Example 1: Create a new slash command**
+```
+User: "Create a command to summarize git history"
+→ Invokes Create workflow
+→ Asks clarifying questions (output format? date range?)
+→ Determines Level 2 (Workflow) is appropriate
+→ Creates .claude/commands/git-summary.md with proper sections
+```
+
+**Example 2: Analyze existing prompt**
+```
+User: "Analyze this prompt and suggest improvements"
+→ Invokes Analyze workflow
+→ Identifies current level and sections
+→ Suggests missing sections or level upgrade
+→ Provides concrete improvement recommendations
+```
+
+**Example 3: Complex automation prompt**
+```
+User: "Create a command that processes multiple files in parallel"
+→ Invokes Create workflow
+→ Recognizes need for Level 4 (Delegate)
+→ Includes Task tool delegation pattern
+→ Adds proper agent configuration variables
+```
+
+## References
+
+- [PromptLevels](references/PromptLevels.md) — Detailed breakdown of all 7 levels with examples
+- [PromptSections](references/PromptSections.md) — Complete section reference with usage guidelines
