@@ -29,6 +29,22 @@ Always test skills with Haiku, Sonnet, AND Opus before finalizing. Different mod
 
 Keep SKILL.md under 500 lines. Use `references/` for detailed docs.
 
+### 4. Companion Skill: WritePrompt
+
+**When creating workflow files, also invoke WritePrompt skill.**
+
+Workflow files are prompts — they benefit from WritePrompt's:
+- 7-level prompt hierarchy (most workflows are Level 2-3)
+- Section guidelines (Variables, Instructions, Workflow, Report)
+- Prompt engineering best practices
+
+| CreateSkill handles | WritePrompt handles |
+|---------------------|---------------------|
+| Skill structure validation | Prompt content quality |
+| Directory layout | Section completeness |
+| Naming conventions | Variable naming (SCREAMING_CASE) |
+| SKILL.md format | Workflow step clarity |
+
 ## Examples
 
 **Example 1: Create a new skill**
