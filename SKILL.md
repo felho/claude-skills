@@ -1,6 +1,6 @@
 ---
 name: WritePrompt
-description: Create and analyze agentic prompts/slash commands. USE WHEN create prompt OR new command OR slash command OR analyze prompt OR improve prompt OR prompt structure OR workflow prompt. Guides through 7 prompt levels with proper sections.
+description: Create and analyze agentic prompts/slash commands. USE WHEN create prompt OR new command OR slash command OR analyze prompt OR improve prompt OR prompt structure OR workflow prompt OR skill workflow OR add workflow to skill OR workflow file OR write workflow. Guides through 7 prompt levels with proper sections.
 ---
 
 # WritePrompt
