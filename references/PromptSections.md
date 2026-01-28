@@ -12,18 +12,22 @@ Configuration block at the top of the prompt file.
 ---
 name: PromptName
 description: What it does in one line
-argument-hint: [required-arg] [optional-arg]
+argument-hint: <required-arg> [optional-arg]
 allowed-tools: Read, Write, Bash, Task
 model: sonnet
 ---
 ```
+
+**Bracket Convention:**
+- `<arg>` = Required argument
+- `[arg]` = Optional argument
 
 **Fields:**
 | Field | Purpose | Example |
 |-------|---------|---------|
 | `name` | Identifier for the prompt | `CreateImage` |
 | `description` | Brief purpose (shown in help) | `Generate images via API` |
-| `argument-hint` | Guide for user input | `[prompt] [count]` |
+| `argument-hint` | Guide for user input | `<required> [optional]` |
 | `allowed-tools` | Restrict available tools | `Read, Write, Bash` |
 | `model` | Override default model | `sonnet`, `opus` |
 
@@ -140,10 +144,80 @@ The core execution steps.
 
 **Loop Block Pattern:**
 ```markdown
-<descriptive-loop-name>
-  - Step inside loop
-  - Another step
-</descriptive-loop-name>
+3. For each item in collection:
+   <descriptive-name-loop>
+   - Step inside loop
+   - Another step
+   </descriptive-name-loop>
+```
+
+**Requirements:**
+- Tag name MUST end with `-loop` suffix
+- MUST be preceded by iteration context ("For each X...", "Process all Y...")
+- Opening and closing tags must match exactly
+
+**Named Block Pattern (Non-Loop):**
+
+For grouping related content WITHOUT iteration:
+```markdown
+<section-name>
+- Related item 1
+- Related item 2
+</section-name>
+```
+
+**Requirements:**
+- Tag name must NOT end with `-loop` (reserved for loops)
+- NOT preceded by iteration language
+- Use for grouping, categorization, or emphasis
+
+**Distinction:**
+| Type | Tag Example | Preceded By | Purpose |
+|------|-------------|-------------|---------|
+| Loop block | `<file-check-loop>` | "For each file:" | Iteration |
+| Named block | `<validation-criteria>` | (nothing special) | Grouping |
+
+**Conditional Syntax:**
+```markdown
+- If condition → action
+- If X is empty → STOP with "error message"
+- If status: done → skip this step
+```
+
+**Requirements:**
+- Use `→` (arrow) notation for then-clause
+- Condition must be clear and testable
+- Action must be specific
+
+**STOP Condition Pattern:**
+```markdown
+- If `VARIABLE` is empty → STOP and report: `"Usage: /command <arg>"`
+- If file not found → STOP with "File not found: {path}" error
+```
+
+**Requirements:**
+- Use `→ STOP` syntax (not just "STOP")
+- Include error message in quotes
+- Error message should include context (variable name, path, etc.)
+
+---
+
+## ## Error Messages
+
+Define exact error messages for STOP conditions.
+
+**Guidelines:**
+- List all error cases with exact message text
+- Use consistent format: `"Error: {description}"`
+- Include placeholders for dynamic values: `{path}`, `{id}`
+- Reference these from STOP conditions in Workflow
+
+```markdown
+## Error Messages (Use Exactly)
+
+- Missing required argument: `"Usage: /command <required-arg>"`
+- File not found: `"Error: File not found: {path}"`
+- Invalid input: `"Error: {field} must be {constraint}. Got: {value}"`
 ```
 
 ---
@@ -243,7 +317,7 @@ Output format for metaprompts (Level 6).
 ---
 allowed-tools: <tools based on task>
 description: <one-line description>
-argument-hint: [<first-arg>]
+argument-hint: <first-arg> [optional-arg]
 ---
 
 # <Name Based on Purpose>
@@ -333,6 +407,7 @@ Summary:
 | Purpose | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Variables | - | ● | ● | ● | ● | ● | ● |
 | Instructions | - | ○ | ○ | ○ | ○ | ○ | ○ |
+| Error Messages | - | - | ● | ● | ● | ○ | ● |
 | Workflow | - | ● | ● | ● | ● | ● | ● |
 | Relevant Files | - | ○ | ○ | ○ | ○ | ○ | ○ |
 | Codebase Structure | - | ○ | ○ | ○ | ○ | ○ | ○ |
@@ -342,3 +417,5 @@ Summary:
 | Report | - | ○ | ○ | ○ | ○ | ○ | ○ |
 
 ● = Required/Common | ○ = Optional | - = Not typical
+
+**Note:** Error Messages section is recommended for Level 3+ prompts that have STOP conditions.
