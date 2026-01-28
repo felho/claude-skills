@@ -1,6 +1,6 @@
 ---
 description: Mark step complete in plan file, check all checkboxes, set status to done
-argument-hint: <packet> [--commit]
+argument-hint: <packet> [--no-commit]
 allowed-tools: Read, Edit, Bash, Glob, Grep, Skill
 # Note: Edit is ONLY for updating the plan .md file, never for implementation files
 ---
@@ -22,7 +22,7 @@ Mark a step as complete in the implementation plan. Updates the step's HTML comm
 ## Variables
 
 PACKET_PATH: $1
-COMMIT_FLAG: $2 (optional, "--commit" to create git commit after marking done)
+NO_COMMIT_FLAG: $2 (optional, "--no-commit" to skip git commit)
 
 ## Instructions
 
@@ -43,13 +43,17 @@ COMMIT_FLAG: $2 (optional, "--commit" to create git commit after marking done)
 
 Change `<!-- id: {step-id} status: in-progress -->` to `<!-- id: {step-id} status: done -->`
 
-### Commit Behavior
+### Commit Behavior (Default)
 
-When `--commit` flag is provided:
+By default, Done creates a git commit with all step-related changes. Use `--no-commit` to skip.
+
 - Follow UseGit skill practices
-- Create conventional commit message: `feat(plan): complete step {step-id}`
-- Include modified plan file in commit
+- **Commit ALL step-related changes:** implementation files, plan update, packet file
+- Create conventional commit message: `feat({scope}): complete step {step-id}`
+  - Use the project/app name as scope (e.g., `feat(personal-finance): complete step ...`)
 - Do NOT re-run validation — user's responsibility to validate first
+
+> **Why commit by default?** The Done workflow is the final step after Execute and Validate. This is when all implementation is complete and verified, making it the natural place to commit everything together.
 
 ### Error Messages (Use Exactly)
 
@@ -63,7 +67,7 @@ When `--commit` flag is provided:
 
 ### 1. Validate Input
 
-- If `PACKET_PATH` is empty → STOP and report: `"Usage: /ManageImpStep done <packet> [--commit]"`
+- If `PACKET_PATH` is empty → STOP and report: `"Usage: /ManageImpStep done <packet> [--no-commit]"`
 - Read packet file at `PACKET_PATH`
   - If file not found → STOP with "Packet not found" error
 
@@ -125,22 +129,26 @@ Change the HTML comment from in-progress to done:
 
 Write the modified plan back to `PLAN_PATH` using Edit tool.
 
-### 9. Handle Commit (if requested)
+### 9. Handle Commit (default)
 
-If `COMMIT_FLAG` is `--commit`:
+Unless `--no-commit` flag is provided:
 
 <commit-flow>
 1. Invoke UseGit skill for proper commit handling
-2. Stage the modified plan file
-3. Commit with message: `feat(plan): complete step {STEP_ID}`
+2. Stage ALL step-related files:
+   - Implementation files (new/modified code)
+   - Plan file (with updated status and checkboxes)
+   - Packet file (step definition)
+   - Any other related files (lock files, configs)
+3. Commit with message: `feat({scope}): complete step {STEP_ID}`
 4. Include standard Co-Authored-By line
 </commit-flow>
 
-If `--commit` not provided, skip this step.
+If `--no-commit` provided, skip this step.
 
 ## Report
 
-### Success (without commit):
+### Success (default, with commit):
 
 ```
 ✅ Step marked done: {STEP_ID}
@@ -148,11 +156,13 @@ If `--commit` not provided, skip this step.
 Plan updated: {PLAN_PATH}
 - Status: in-progress → done
 - Checkboxes: {checked_count} checked
+
+Commit created: feat({scope}): complete step {STEP_ID}
 
 Next step: Run `/ManageImpStep prepare {PLAN_PATH} {DESIGN_DOC_PATH}` to prepare the next step.
 ```
 
-### Success (with commit):
+### Success (with --no-commit):
 
 ```
 ✅ Step marked done: {STEP_ID}
@@ -160,8 +170,6 @@ Next step: Run `/ManageImpStep prepare {PLAN_PATH} {DESIGN_DOC_PATH}` to prepare
 Plan updated: {PLAN_PATH}
 - Status: in-progress → done
 - Checkboxes: {checked_count} checked
-
-Commit created: feat(plan): complete step {STEP_ID}
 
 Next step: Run `/ManageImpStep prepare {PLAN_PATH} {DESIGN_DOC_PATH}` to prepare the next step.
 ```

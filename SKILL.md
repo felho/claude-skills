@@ -21,7 +21,7 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 | **Check** | `/ManageImpStep check <packet>` | `Workflows/Check.md` |
 | **Execute** | `/ManageImpStep execute <packet>` | `Workflows/Execute.md` |
 | **Validate** | `/ManageImpStep validate <packet>` | `Workflows/Validate.md` |
-| **Done** | `/ManageImpStep done <packet> [--commit]` | `Workflows/Done.md` |
+| **Done** | `/ManageImpStep done <packet> [--no-commit]` | `Workflows/Done.md` |
 
 ## Workflow Flow
 
@@ -67,7 +67,7 @@ User: "/ManageImpStep prepare ..." → creates packet
 User: "/ManageImpStep check <packet>" → verifies packet completeness
 User: "/ManageImpStep execute <packet>" → implements the step
 User: "/ManageImpStep validate <packet>" → runs tests, checks criteria
-User: "/ManageImpStep done <packet> --commit" → marks done, commits
+User: "/ManageImpStep done <packet>" → marks done, commits (default)
 ```
 
 ## References
