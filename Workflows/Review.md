@@ -1,6 +1,6 @@
-# Analyze Prompt Workflow
+# Review Prompt Workflow
 
-Guide for analyzing existing prompts and suggesting improvements based on PromptSections.md standards.
+Guide for reviewing existing prompts and suggesting improvements based on PromptSections.md standards. This workflow examines prompts without modifying them — use the Write workflow to apply changes.
 
 ## Input
 

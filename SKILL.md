@@ -1,11 +1,11 @@
 ---
 name: WritePrompt
-description: Create and analyze agentic prompts/slash commands. USE WHEN create prompt OR new command OR slash command OR analyze prompt OR improve prompt OR prompt structure OR workflow prompt OR skill workflow OR add workflow to skill OR workflow file OR write workflow. Guides through 7 prompt levels with proper sections.
+description: Create, modify, and review agentic prompts/slash commands. USE WHEN create prompt OR new command OR slash command OR modify prompt OR update workflow OR improve prompt OR edit prompt OR prompt structure OR workflow prompt OR skill workflow OR add workflow to skill OR workflow file OR write workflow OR review prompt. Guides through 7 prompt levels with proper sections.
 ---
 
 # WritePrompt
 
-Framework for creating and analyzing agentic prompts following the 7-level prompt hierarchy.
+Framework for creating, modifying, and reviewing agentic prompts following the 7-level prompt hierarchy.
 
 ## Core Principle
 
@@ -17,8 +17,8 @@ Every prompt should have the right level of complexity for its use case — no m
 
 | Workflow | Trigger | File |
 |----------|---------|------|
-| **Create** | "create prompt", "new command", "slash command for X" | `Workflows/Create.md` |
-| **Analyze** | "analyze this prompt", "review prompt", "improve prompt" | `Workflows/Analyze.md` |
+| **Write** | "create prompt", "new command", "modify prompt", "update workflow", "edit prompt", "improve prompt" | `Workflows/Write.md` |
+| **Review** | "review this prompt", "check prompt quality", "audit prompt" | `Workflows/Review.md` |
 
 ## The 7 Prompt Levels
 
@@ -55,25 +55,34 @@ Every prompt should have the right level of complexity for its use case — no m
 **Example 1: Create a new slash command**
 ```
 User: "Create a command to summarize git history"
-→ Invokes Create workflow
+→ Invokes Write workflow (create mode)
 → Asks clarifying questions (output format? date range?)
 → Determines Level 2 (Workflow) is appropriate
 → Creates .claude/commands/git-summary.md with proper sections
 ```
 
-**Example 2: Analyze existing prompt**
+**Example 2: Modify existing prompt**
 ```
-User: "Analyze this prompt and suggest improvements"
-→ Invokes Analyze workflow
-→ Identifies current level and sections
-→ Suggests missing sections or level upgrade
-→ Provides concrete improvement recommendations
+User: "Add a verification step to the Check workflow"
+→ Invokes Write workflow (modify mode)
+→ Reads existing prompt, identifies what needs to change
+→ Adds the new step, renumbers subsequent steps
+→ Updates the prompt file
 ```
 
-**Example 3: Complex automation prompt**
+**Example 3: Review prompt quality**
+```
+User: "Review this prompt and suggest improvements"
+→ Invokes Review workflow
+→ Identifies current level and sections
+→ Suggests missing sections or level upgrade
+→ Provides concrete recommendations (does NOT modify)
+```
+
+**Example 4: Complex automation prompt**
 ```
 User: "Create a command that processes multiple files in parallel"
-→ Invokes Create workflow
+→ Invokes Write workflow (create mode)
 → Recognizes need for Level 4 (Delegate)
 → Includes Task tool delegation pattern
 → Adds proper agent configuration variables
