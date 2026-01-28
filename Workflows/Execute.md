@@ -8,6 +8,25 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 Implement a step based on the detailed instructions in its packet. Follow TDD: write tests first, then implementation.
 
+> **🛑 CRITICAL SCOPE BOUNDARY — READ THIS FIRST**
+>
+> This workflow is **ONLY for implementation**. After completing this workflow, you MUST STOP and wait for the user.
+>
+> **This workflow DOES:**
+> - Write tests (TDD)
+> - Write implementation code
+> - Run tests to verify they pass
+> - Type check
+>
+> **This workflow does NOT (NEVER do these):**
+> - ❌ Update the plan file (no status changes, no checkbox updates)
+> - ❌ Create git commits
+> - ❌ Mark the step as done
+> - ❌ Invoke the Done workflow
+> - ❌ Invoke the UseGit skill
+>
+> **After this workflow:** User will run `/ManageImpStep validate`, then `/ManageImpStep done`.
+
 > **⚠️ SCOPE: Implement EXACTLY what the packet specifies — no more, no less.**
 >
 > **Do NOT:**
@@ -197,3 +216,21 @@ Blocked by:
 Next steps:
 - {what needs to happen}
 ```
+
+---
+
+## 🛑 HARD STOP — DO NOT PROCEED
+
+**This workflow is complete. You MUST stop here.**
+
+Do NOT:
+- Update the plan file
+- Create a git commit
+- Mark checkboxes as done
+- Change step status to "done"
+- Invoke `/ManageImpStep done`
+- Invoke the UseGit skill
+
+**Wait for the user** to run `/ManageImpStep validate` and then `/ManageImpStep done`.
+
+If you find yourself about to do any of the above actions, STOP immediately. These actions belong to the Done workflow, not Execute.
