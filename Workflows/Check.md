@@ -98,11 +98,49 @@ Read the ENTIRE plan file at `PLAN_PATH`.
 
 **Key question:** If someone implemented this step using ONLY the packet, would they have ALL the information needed? If not, what's missing?
 
-### 6. Update Packet with Missing Information
+### 6. Capture Potential Issues (Interim List)
 
-For each missing item found:
+Create a numbered list of potential issues found during analysis. This is an interim working list — items may turn out to be already covered.
 
-<update-rules>
+**Format:**
+```
+**Potential Issues Found:**
+1. [Description of what might be missing]
+2. [Another potential gap]
+3. [Edge case that may not be covered]
+```
+
+**Important:** This list captures your initial findings. Each item will be verified in the next step.
+
+### 7. Verify Each Issue Against Packet
+
+For each potential issue, search the packet for evidence. Provide explicit proof (line numbers, exact quotes) for your verification.
+
+**Format:**
+```
+**Verification:**
+1. [Issue description]
+   → ✅ **Found** at line X: "[exact quote from packet]"
+
+2. [Issue description]
+   → ✅ **Found** at line Y: "[exact quote]"
+
+3. [Issue description]
+   → ❌ **Missing** — needs to be added to packet
+```
+
+**Rules:**
+- Every potential issue MUST be verified with proof
+- Use exact line numbers from the packet
+- Quote the relevant text that proves coverage
+- Mark clearly: ✅ Found (with proof) or ❌ Missing
+- The final verdict must be consistent with verification results
+
+### 8. Update Packet with Missing Information
+
+For each item marked ❌ Missing in verification:
+
+<update-loop>
 - Add missing design doc content to "From Design Document" section
 - Add missing plan content to "From Plan (Supporting Sections)" section
 - Add missing test cases to "Test Cases" section
@@ -111,26 +149,48 @@ For each missing item found:
 - Do NOT duplicate information already in the packet
 - Do NOT remove existing content
 - Use the packet's existing section structure
-</update-rules>
+</update-loop>
 
-### 7. Report Result
+### 9. Report Result
 
-**If no changes needed:**
+**If no changes needed (all issues verified as present):**
 ```
-✅ Packet is complete: {PACKET_PATH}
+**Potential Issues Found:**
+1. {brief description}
+2. {brief description}
 
-No missing information found. Ready for implementation.
+**Verification:**
+1. {description} → ✅ Found at line X: "{quote}"
+2. {description} → ✅ Found at line Y: "{quote}"
+
+---
+
+✅ **Packet is complete:** {PACKET_PATH}
+
+All potential issues verified as present in packet. Ready for implementation.
 
 Next: Run `/ManageImpStep execute {PACKET_PATH}` to implement.
 ```
 
-**If packet was updated:**
+**If packet was updated (some issues were missing):**
 ```
-✅ Packet updated: {PACKET_PATH}
+**Potential Issues Found:**
+1. {brief description}
+2. {brief description}
+3. {brief description}
+
+**Verification:**
+1. {description} → ✅ Found at line X: "{quote}"
+2. {description} → ❌ Missing
+3. {description} → ❌ Missing
+
+---
+
+✅ **Packet updated:** {PACKET_PATH}
 
 Added:
-- {summary of what was added}
-- {another item}
+- {summary of what was added for issue #2}
+- {summary of what was added for issue #3}
 
 Next: Review changes, then run `/ManageImpStep execute {PACKET_PATH}` to implement.
 ```
