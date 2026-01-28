@@ -2,11 +2,21 @@
 description: Verify packet completeness against source documents, improve if needed
 argument-hint: <packet>
 allowed-tools: Read, Edit, Glob
+# Note: Edit is ONLY for updating the packet .md file, never for implementation files
 ---
 
 # Check Step Packet
 
 Verify that a step packet contains all information needed for successful implementation by re-reading source documents and finding missing details.
+
+> **⚠️ SCOPE: This workflow ONLY modifies the packet `.md` file.**
+>
+> You may ADD missing information to the packet. You must NOT:
+> - Create or modify implementation files
+> - Write code or config files
+> - Fix issues in the codebase
+>
+> If you find the packet incomplete, enhance the packet documentation only.
 
 ## Variables
 

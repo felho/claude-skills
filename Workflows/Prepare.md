@@ -2,11 +2,23 @@
 description: Create step implementation packet from plan + design doc
 argument-hint: <plan> <design-doc> [phase-id/step-id]
 allowed-tools: Read, Write, Edit, Glob, AskUserQuestion
+# Note: Write/Edit are ONLY for the packet .md file, never for implementation files
 ---
 
 # Prepare Step Packet
 
 Create a detailed step implementation packet containing all context needed for implementation.
+
+> **⚠️ CRITICAL: This workflow ONLY creates a packet markdown file.**
+>
+> **Do NOT:**
+> - Write code or config files
+> - Modify project files
+> - Execute any implementation steps
+> - Create directories outside the packet location
+>
+> **Your ONLY output is the packet `.md` file** at the computed path (plus updating plan status).
+> Implementation happens in the **Execute** workflow, not here.
 
 ## Variables
 
@@ -132,15 +144,15 @@ Look for supporting sections in the plan that apply to this step:
 
 Include the ACTUAL CONTENT of referenced sections, not just links.
 
-### 7. Create Packet Directory
+### 7. Create Packet Directory (for the markdown file only)
 
 Compute packet path: `{plan-dir}/{plan-name}-steps/{phase-id}/{step-id}.md`
 
-Create parent directories if needed.
+Create parent directories if needed. This is the ONLY directory you should create.
 
-### 8. Write Packet File
+### 8. Write Packet Markdown File (NOT implementation!)
 
-Create the packet with this structure:
+Create the packet `.md` file with this structure (this is the ONLY file you write):
 
 ```markdown
 ---
@@ -191,7 +203,18 @@ If step was not already `in-progress`:
 - Find the step's `<!-- id: {step-id} -->` comment
 - Change to `<!-- id: {step-id} status: in-progress -->`
 
-### 10. Report Result
+### 10. STOP Check (Self-Verification)
+
+Before reporting, verify you followed the rules:
+
+- [ ] You created ONLY one new file: the packet `.md` at the computed path
+- [ ] You did NOT create/modify any code, config, or project files
+- [ ] You did NOT implement the step (no `special-rules.json`, no source files, etc.)
+- [ ] The packet contains context TO BE IMPLEMENTED LATER in Execute workflow
+
+If any check fails → you made a mistake. Undo the implementation work and focus only on the packet.
+
+### 11. Report Result
 
 Output:
 ```
@@ -209,3 +232,5 @@ After successful preparation, always include:
 1. Confirmation message with step ID
 2. Full path to the created packet
 3. Suggested next command
+
+**Remember:** You prepared a PACKET (documentation). You did NOT implement anything. Implementation is the user's next step via `/ManageImpStep execute`.

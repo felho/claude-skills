@@ -2,11 +2,22 @@
 description: Mark step complete in plan file, check all checkboxes, set status to done
 argument-hint: <packet> [--commit]
 allowed-tools: Read, Edit, Bash, Glob, Grep, Skill
+# Note: Edit is ONLY for updating the plan .md file, never for implementation files
 ---
 
 # Mark Step Done
 
 Mark a step as complete in the implementation plan. Updates the step's HTML comment status to `done` and checks all task checkboxes within the step.
+
+> **⚠️ SCOPE: This workflow ONLY marks completion — no implementation work.**
+>
+> **Do NOT:**
+> - Do "one more fix" before marking done
+> - Add finishing touches to the code
+> - Refactor or improve implementation
+> - Create or modify implementation files
+>
+> If the step isn't ready to be marked done, use `/ManageImpStep execute` or `/ManageImpStep validate` instead.
 
 ## Variables
 

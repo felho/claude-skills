@@ -436,6 +436,49 @@ This mirrors the `{phase-id}/{step-id}` identifier format.
 3. **Multiple plans:** Plan path is a mandatory parameter
 4. **Partial steps:** Not needed — step is either in-progress or done
 
+## Workflow Scope Guardrails
+
+Each workflow has explicit scope boundaries to prevent common mistakes where Claude does work outside the workflow's intent.
+
+### The Problem
+
+Without clear guardrails, Claude tends to:
+- **Prepare:** Start implementing instead of just creating the packet documentation
+- **Check:** Fix implementation issues instead of just improving the packet
+- **Execute:** Add extra features, refactor adjacent code, or fix unrelated issues
+- **Done:** Do "one more fix" before marking complete
+
+### The Solution
+
+Each workflow now includes:
+
+1. **Scope warning** (blockquote at top) — Clear "Do NOT" list specific to that workflow
+2. **allowed-tools note** — Clarifies what Write/Edit tools are for
+3. **STOP check** (where applicable) — Self-verification checklist before reporting
+
+### Per-Workflow Guardrails
+
+| Workflow | Scope | Can Modify |
+|----------|-------|------------|
+| **Prepare** | Create packet documentation only | Only the packet `.md` file + plan status |
+| **Check** | Enhance packet documentation only | Only the packet `.md` file |
+| **Execute** | Implement exactly what packet specifies | Implementation files (code, config, tests) |
+| **Validate** | Report pass/fail status only | Nothing (read-only, no Write/Edit tools) |
+| **Done** | Mark completion only | Only the plan `.md` file |
+
+### Key Insight
+
+**Validate** is naturally protected — it has no Write/Edit tools, so it physically cannot modify files. The other workflows needed explicit guardrails because they have modification capabilities that could be misused.
+
+### STOP Checks
+
+Two workflows have explicit STOP checks before reporting:
+
+- **Prepare** (Step 10): Verify only packet was created, no implementation work done
+- **Execute** (Step 10): Verify stayed in scope, no extra features or out-of-scope fixes
+
+These act as a final self-verification to catch scope violations before completing the workflow.
+
 ## Future Enhancements
 
 1. **Plan change detection:** Include hash of step definition in packet. Before execute, compare current definition hash. Warn if plan changed since packet creation. (For now: engineer's responsibility to be aware of plan changes.)

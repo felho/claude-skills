@@ -8,6 +8,16 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 Implement a step based on the detailed instructions in its packet. Follow TDD: write tests first, then implementation.
 
+> **⚠️ SCOPE: Implement EXACTLY what the packet specifies — no more, no less.**
+>
+> **Do NOT:**
+> - Add features beyond what is documented in the packet
+> - Refactor code outside the step's scope
+> - "Improve" adjacent code while you're there
+> - Fix unrelated issues you notice
+>
+> If you discover something that needs fixing but is outside scope, note it for a future step.
+
 ## Variables
 
 PACKET_PATH: $1
@@ -145,6 +155,17 @@ tsc --noEmit
 ```
 
 Fix any type errors before completing.
+
+### 10. STOP Check (Scope Verification)
+
+Before reporting, verify you stayed in scope:
+
+- [ ] You ONLY implemented what was specified in the packet
+- [ ] You did NOT add extra features, helpers, or "improvements"
+- [ ] You did NOT refactor code outside the step's scope
+- [ ] You did NOT fix unrelated issues (note them for future steps instead)
+
+If any check fails → undo the out-of-scope work before proceeding.
 
 ## Report
 
