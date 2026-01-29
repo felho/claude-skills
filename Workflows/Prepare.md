@@ -12,6 +12,7 @@ Create a detailed step implementation packet containing all context needed for i
 > **⚠️ CRITICAL: This workflow ONLY creates a packet markdown file.**
 >
 > **Do NOT:**
+>
 > - Write code or config files
 > - Modify project files
 > - Execute any implementation steps
@@ -96,6 +97,7 @@ If no valid steps found → STOP with "No steps found" error
 - Otherwise → this is the step to prepare
 
 **If STEP_ID is NOT provided:**
+
 - Count steps with `status: in-progress`
 - If multiple in-progress → STOP with "Multiple steps in-progress" error
 - If exactly one in-progress:
@@ -104,11 +106,12 @@ If no valid steps found → STOP with "No steps found" error
   - If packet missing → this is the step to prepare (will create packet, status remains in-progress)
 - If none in-progress → find first step without status attribute (todo) → this is the step to prepare
 - If all steps are done → STOP with message: "All steps are complete."
-</step-selection>
+  </step-selection>
 
 ### 4. Extract Step Content
 
 From the plan, extract for the selected step:
+
 - Full step heading and text until next H2 or H3
 - Any checkboxes or task items
 - Test/Value annotations
@@ -200,6 +203,7 @@ created: {ISO-8601 timestamp}
 ### 9. Update Plan Status
 
 If step was not already `in-progress`:
+
 - Find the step's `<!-- id: {step-id} -->` comment
 - Change to `<!-- id: {step-id} status: in-progress -->`
 
@@ -217,6 +221,7 @@ If any check fails → you made a mistake. Undo the implementation work and focu
 ### 11. Report Result
 
 Output:
+
 ```
 ✅ Step prepared: {phase-id}/{step-id}
 
@@ -229,6 +234,7 @@ Next: Run `/ManageImpStep execute {packet-path}` to implement.
 ## Report
 
 After successful preparation, always include:
+
 1. Confirmation message with step ID
 2. Full path to the created packet
 3. Suggested next command

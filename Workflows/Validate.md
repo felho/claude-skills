@@ -20,13 +20,15 @@ Verify that the implementation meets ALL acceptance criteria defined in the step
 
 PACKET_PATH: $1
 FINDINGS_PATH: PACKET_PATH with `.md` replaced by `.findings.md`
-  Example: `decide-add-mapping.md` → `decide-add-mapping.findings.md`
+Example: `decide-add-mapping.md` → `decide-add-mapping.findings.md`
 
 PARALLEL_AGENTS: Parse from `--agents N` flag in arguments. Default: 1.
-  - If 1 → single-agent mode (inline validation, no Task tool needed)
-  - If >1 → multi-agent mode (launch N parallel validation agents via Task tool)
+
+- If 1 → single-agent mode (inline validation, no Task tool needed)
+- If >1 → multi-agent mode (launch N parallel validation agents via Task tool)
 
 KNOWN_SIDE_EFFECTS:
+
 - `.claude/settings.local.json` — Permission changes during session
 - `bun.lock` — Dependency lock file updates
 - `package-lock.json` — NPM lock file updates
@@ -34,6 +36,7 @@ KNOWN_SIDE_EFFECTS:
 - `*.findings.md` — Validation findings (transient, managed by validate/fix cycle)
 
 TEMP_ARTIFACT_PATTERNS:
+
 - `coverage/` — Test coverage reports (gitignore)
 - `*.tmp`, `*.temp` — Temporary files (delete)
 - `*.log` — Log files (delete or gitignore)
@@ -57,6 +60,7 @@ TEMP_ARTIFACT_PATTERNS:
 **Single-agent mode** (`PARALLEL_AGENTS = 1`): The main agent (you) runs all checks directly — type check, tests, file existence, acceptance criteria, and git status audit. No subagents are launched.
 
 **Multi-agent mode** (`PARALLEL_AGENTS > 1`): LLMs are non-deterministic — a single validation pass may miss issues that another pass catches. To mitigate this:
+
 - Launch `PARALLEL_AGENTS` independent validation agents, each reviewing the same packet
 - Each agent runs type checks, tests, file existence, and acceptance criteria verification independently
 - Merge results using **union strategy**: if ANY agent reports a criterion as FAIL, it is FAIL in the final result
@@ -94,6 +98,7 @@ These steps are deterministic and run once in the main agent.
 ### 2. Parse Packet Frontmatter
 
 Extract from YAML frontmatter:
+
 - `step` → STEP_ID
 - `plan` → PLAN_PATH
 - `design-doc` → DESIGN_DOC_PATH
@@ -113,6 +118,7 @@ If any required field is missing → STOP with "Invalid packet" error
 ### 4. Determine App Directory
 
 Identify the app directory for running type checks and tests:
+
 - Look at the packet's implementation notes or file paths to determine the app directory
 - This is typically the directory containing `package.json` and `tsconfig.json`
 - Store as `APP_DIR`
@@ -127,17 +133,21 @@ The following four checks apply in BOTH modes. In single-agent mode, the main ag
 **Check 1: Type Check**
 
 Run in the app directory (`APP_DIR`):
+
 ```bash
 cd {APP_DIR} && bunx tsc --noEmit
 ```
+
 Record: PASS or FAIL with error details.
 
 **Check 2: Test Suite**
 
 Run in the app directory (`APP_DIR`):
+
 ```bash
 cd {APP_DIR} && bun run test
 ```
+
 Record: PASS or FAIL. Note total passed/total tests and any failing test names.
 
 **Check 3: File Existence**
@@ -200,17 +210,21 @@ Verify the implementation against the acceptance criteria in the packet above. W
 ### Check 1: Type Check
 
 Run in the app directory (`{APP_DIR}`):
+
 ```bash
 cd {APP_DIR} && bunx tsc --noEmit
 ```
+
 Record: PASS or FAIL with error details.
 
 ### Check 2: Test Suite
 
 Run in the app directory (`{APP_DIR}`):
+
 ```bash
 cd {APP_DIR} && bun run test
 ```
+
 Record: PASS or FAIL. Note total passed/total tests and any failing test names.
 
 ### Check 3: File Existence
@@ -263,6 +277,7 @@ ADDITIONAL_FINDINGS:
 After all `PARALLEL_AGENTS` agents complete, merge their results:
 
 **Merge rules:**
+
 - **Union strategy:** If ANY agent reports a criterion as FAIL → it is FAIL in the merged result
 - **Type check:** FAIL if any agent reports FAIL
 - **Test suite:** FAIL if any agent reports FAIL (use the most detailed failure report)
@@ -295,6 +310,7 @@ Run `git status --short` and categorize each file:
 **Detecting verification-only test files:**
 
 A test file is a "verification artifact" (not a deliverable) if ALL of these are true:
+
 - Located in `tests/` directory
 - Contains NO imports from the project's `src/` directory
 - Only tests trivial assertions (infrastructure checks like "1+1=2", "directory exists")
@@ -325,6 +341,7 @@ How should I handle these files?
 ### 8. Compile Results
 
 Aggregate all check results (from step 5 in single-agent mode, or merged results from step 6 in multi-agent mode) and git status audit from step 7:
+
 - Type check: PASS/FAIL
 - Tests: X/Y passing
 - Files: all exist / N missing
@@ -332,6 +349,7 @@ Aggregate all check results (from step 5 in single-agent mode, or merged results
 - Git status audit: clean / has issues
 
 Determine overall status:
+
 - **PASS** — All automated checks pass AND git status is clean
 - **FAIL** — Any automated check fails
 - **PARTIAL** — Automated pass, but has manual verification items
@@ -348,15 +366,16 @@ Based on the overall status determined in step 8:
 
 ```markdown
 ---
-step: {STEP_ID}
-packet: {PACKET_PATH}
-validated-at: {ISO-8601 timestamp}
+step: { STEP_ID }
+packet: { PACKET_PATH }
+validated-at: { ISO-8601 timestamp }
 result: FAIL|PARTIAL|BLOCKED
 ---
 
 ## Failed
 
 ### {criterion number}. {criterion description}
+
 **Expected:** {what should be true based on the packet}
 **Found:** {what was actually found during validation}
 **Packet section:** {which section of the packet describes the expected behavior}
@@ -365,10 +384,11 @@ result: FAIL|PARTIAL|BLOCKED
 
 1. {criterion description} ✓
 2. {criterion description} ✓
-...
+   ...
 ```
 
 **Rules:**
+
 - Each failed criterion gets its own H3 subsection under `## Failed`
 - Passed criteria are a numbered list under `## Passed`
 - The `## Failed` section comes first (most important for the Fix workflow)

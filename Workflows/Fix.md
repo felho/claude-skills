@@ -13,6 +13,7 @@ Apply targeted TDD fixes for criteria that failed validation. Reads the findings
 > This workflow is **ONLY for fixing issues identified in the findings file**. After completing this workflow, you MUST STOP and wait for the user.
 >
 > **This workflow DOES:**
+>
 > - Read the findings file to understand what failed
 > - Read relevant packet sections for the failed criteria
 > - Update tests for the failed criteria (TDD)
@@ -21,6 +22,7 @@ Apply targeted TDD fixes for criteria that failed validation. Reads the findings
 > - Type check
 >
 > **This workflow does NOT (NEVER do these):**
+>
 > - ❌ Fix issues NOT listed in the findings file
 > - ❌ Refactor or improve passing code
 > - ❌ Add features beyond what the findings require
@@ -37,7 +39,7 @@ Apply targeted TDD fixes for criteria that failed validation. Reads the findings
 PACKET_PATH: $1
 EXTRA_FEEDBACK: $2 (optional, additional context from user beyond findings file)
 FINDINGS_PATH: PACKET_PATH with `.md` replaced by `.findings.md`
-  Example: `decide-add-mapping.md` → `decide-add-mapping.findings.md`
+Example: `decide-add-mapping.md` → `decide-add-mapping.findings.md`
 
 ## Instructions
 
@@ -82,6 +84,7 @@ FINDINGS_PATH: PACKET_PATH with `.md` replaced by `.findings.md`
 ### 2. Parse Packet Frontmatter
 
 Extract from YAML frontmatter:
+
 - `step` → STEP_ID
 - `plan` → PLAN_PATH
 - `design-doc` → DESIGN_DOC_PATH
@@ -216,6 +219,7 @@ Next steps:
 **This workflow is complete. You MUST stop here.**
 
 Do NOT:
+
 - Run `/ManageImpStep validate`
 - Update the plan file
 - Create a git commit

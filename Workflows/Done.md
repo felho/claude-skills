@@ -12,6 +12,7 @@ Mark a step as complete in the implementation plan. Updates the step's HTML comm
 > **⚠️ SCOPE: This workflow ONLY marks completion — no implementation work.**
 >
 > **Do NOT:**
+>
 > - Do "one more fix" before marking done
 > - Add finishing touches to the code
 > - Refactor or improve implementation
@@ -74,6 +75,7 @@ By default, Done creates a git commit with all step-related changes. Use `--no-c
 ### 2. Parse Packet Frontmatter
 
 Extract from YAML frontmatter:
+
 - `step` → STEP_ID (format: phase-id/step-id)
 - `plan` → PLAN_PATH
 

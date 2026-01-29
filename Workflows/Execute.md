@@ -13,12 +13,14 @@ Implement a step based on the detailed instructions in its packet. Follow TDD: w
 > This workflow is **ONLY for implementation**. After completing this workflow, you MUST STOP and wait for the user.
 >
 > **This workflow DOES:**
+>
 > - Write tests (TDD)
 > - Write implementation code
 > - Run tests to verify they pass
 > - Type check
 >
 > **This workflow does NOT (NEVER do these):**
+>
 > - ❌ Update the plan file (no status changes, no checkbox updates)
 > - ❌ Create git commits
 > - ❌ Mark the step as done
@@ -30,6 +32,7 @@ Implement a step based on the detailed instructions in its packet. Follow TDD: w
 > **⚠️ SCOPE: Implement EXACTLY what the packet specifies — no more, no less.**
 >
 > **Do NOT:**
+>
 > - Add features beyond what is documented in the packet
 > - Refactor code outside the step's scope
 > - "Improve" adjacent code while you're there
@@ -88,6 +91,7 @@ PACKET_PATH: $1
 ### 2. Parse Packet Frontmatter
 
 Extract from YAML frontmatter:
+
 - `step` → STEP_ID
 - `plan` → PLAN_PATH
 - `design-doc` → DESIGN_DOC_PATH
@@ -195,6 +199,7 @@ If any criterion is not met → continue implementation until all pass
 ### 9. Type Check
 
 Run TypeScript type check (if applicable):
+
 ```bash
 tsc --noEmit
 ```
@@ -250,6 +255,7 @@ Next steps:
 **This workflow is complete. You MUST stop here.**
 
 Do NOT:
+
 - Update the plan file
 - Create a git commit
 - Mark checkboxes as done
