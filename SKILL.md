@@ -1,6 +1,7 @@
 ---
 name: ManageImpStep
 description: Drive multi-step plan implementation with focused context packets. USE WHEN step prepare OR step check OR step execute OR step validate OR step done OR implementation workflow OR plan packet.
+allowed-tools: Read
 ---
 
 # ManageImpStep
