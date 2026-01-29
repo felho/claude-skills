@@ -118,6 +118,13 @@ Read the full packet and extract:
 - **Implementation Notes** — Gotchas, exact error messages
 </packet-sections>
 
+### 4b. Explore Codebase for Context
+
+Before writing tests, gather context about the existing codebase:
+
+- Use the **Task tool with `subagent_type=Explore`** to find existing patterns, related files, and dependencies
+- **Do NOT specify `allowed_tools`** on the Task call — Explore agents already have Read/Glob/Grep access by default. Specifying `allowed_tools` triggers an unnecessary permission prompt for the user.
+
 ### 5. Write Tests First
 
 Based on Test Cases section:
