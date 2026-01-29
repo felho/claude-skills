@@ -4,7 +4,7 @@ description: Verify implementation meets acceptance criteria from packet
 argument-hint: <packet-path> [--agents N]
 allowed-tools: Read, Write, Bash, Glob, Grep, Task
 # Note: Write is ONLY for the findings file, never for implementation files
-# Note: Task is used to launch parallel validation agents (only when --agents > 1)
+# Note: Task is ONLY for multi-agent mode (--agents > 1). In single-agent mode (default), NEVER use Task.
 ---
 
 # Validate Step Implementation
@@ -163,7 +163,14 @@ This is the most important check. For EACH numbered criterion in the "Acceptance
 
 ### 5. Run Validation Checks Inline
 
-Run all four checks from `<validation-checks>` directly in the main agent. No subagents are launched.
+> **⚠️ CRITICAL:** In single-agent mode, you (the main agent) run ALL checks directly using Read, Grep, Glob, and Bash tools. **DO NOT launch Task agents.** Do NOT use the Task tool at all. Read the source files yourself and verify each criterion inline.
+
+Run all four checks from `<validation-checks>` directly:
+
+1. **Type Check** — Run `bunx tsc --noEmit` via Bash
+2. **Test Suite** — Run `bun run test` via Bash
+3. **File Existence** — Use Glob/Read to verify files exist
+4. **Acceptance Criteria** — Use Read to open source files and verify each criterion yourself. Do NOT delegate this to a subagent.
 
 Then proceed to step 7 (Git Status Audit).
 
