@@ -2,7 +2,8 @@
 name: ValidateStep
 description: Verify implementation meets acceptance criteria from packet
 argument-hint: <packet-path>
-allowed-tools: Read, Bash, Glob, Grep
+allowed-tools: Read, Write, Bash, Glob, Grep
+# Note: Write is ONLY for the findings file, never for implementation files
 ---
 
 # Validate Step Implementation
@@ -14,12 +15,15 @@ Verify that the implementation meets ALL acceptance criteria defined in the step
 ## Variables
 
 PACKET_PATH: $1
+FINDINGS_PATH: PACKET_PATH with `.md` replaced by `.findings.md`
+  Example: `decide-add-mapping.md` → `decide-add-mapping.findings.md`
 
 KNOWN_SIDE_EFFECTS:
 - `.claude/settings.local.json` — Permission changes during session
 - `bun.lock` — Dependency lock file updates
 - `package-lock.json` — NPM lock file updates
 - `yarn.lock` — Yarn lock file updates
+- `*.findings.md` — Validation findings (transient, managed by validate/fix cycle)
 
 TEMP_ARTIFACT_PATTERNS:
 - `coverage/` — Test coverage reports (gitignore)
@@ -195,6 +199,47 @@ Determine overall status:
 - **PARTIAL** — Automated pass, but has manual verification items
 - **BLOCKED** — Unknown files in git status need user input
 
+### 11. Write or Delete Findings File
+
+Based on the overall status determined in step 10:
+
+- If **PASS** → delete `FINDINGS_PATH` if it exists (silently, no error if absent)
+- If **FAIL**, **PARTIAL**, or **BLOCKED** → write structured findings to `FINDINGS_PATH`
+
+**Findings file format:**
+
+```markdown
+---
+step: {STEP_ID}
+packet: {PACKET_PATH}
+validated-at: {ISO-8601 timestamp}
+result: FAIL|PARTIAL|BLOCKED
+---
+
+## Failed
+
+### {criterion number}. {criterion description}
+**Expected:** {what should be true based on the packet}
+**Found:** {what was actually found during validation}
+**Packet section:** {which section of the packet describes the expected behavior}
+
+## Passed
+
+1. {criterion description} ✓
+2. {criterion description} ✓
+...
+```
+
+**Rules:**
+- Each failed criterion gets its own H3 subsection under `## Failed`
+- Passed criteria are a numbered list under `## Passed`
+- The `## Failed` section comes first (most important for the Fix workflow)
+- If result is PARTIAL, manual-verification items go under `## Manual` (between Failed and Passed)
+- If result is BLOCKED, the unknown files go under `## Blocked` (between Failed and Passed)
+- The `**Packet section**` field helps the Fix workflow find the relevant specification without reading the entire packet
+
+**Git status note:** The findings file (`*.findings.md`) is a transient artifact. It should NOT be committed — the Git Status Audit (step 9) should treat `*.findings.md` files as known side effects (same as `KNOWN_SIDE_EFFECTS` patterns).
+
 ## Report
 
 ### If ALL checks PASS:
@@ -226,7 +271,10 @@ Acceptance criteria: {verified}/{total}
   - ✗ {failed criterion}
 Git status: {✓ or ⚠️ if issues}
 
-Fix the issues and re-run `/ManageImpStep validate {PACKET_PATH}`.
+Findings written to: {FINDINGS_PATH}
+
+Fix the issues and re-run `/ManageImpStep validate {PACKET_PATH}`,
+or run `/ManageImpStep fix {PACKET_PATH}` for targeted fixes.
 ```
 
 ### If PARTIAL (has manual checks):
@@ -244,7 +292,10 @@ Manual verification needed:
 - [ ] {criterion requiring manual check}
 - [ ] {another manual criterion}
 
+Findings written to: {FINDINGS_PATH}
+
 If manual checks pass, run `/ManageImpStep done {PACKET_PATH}`.
+If automated fixes are needed, run `/ManageImpStep fix {PACKET_PATH}`.
 ```
 
 ### If BLOCKED (unknown files in git status):

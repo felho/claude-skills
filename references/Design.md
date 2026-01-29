@@ -383,7 +383,7 @@ This mirrors the `{phase-id}/{step-id}` identifier format.
 > "Verify the implementation meets ALL acceptance criteria from the packet. Run all specified checks. Report clearly what passed and what failed."
 
 **If validation fails:**
-1. Fix the issues manually or re-run `/ManageImpStep execute`
+1. Run `/ManageImpStep fix <packet>` for targeted fixes based on findings file, OR fix manually
 2. Re-run `/ManageImpStep validate` until it passes
 3. Do not run `/ManageImpStep done` until validation passes
 
@@ -392,7 +392,41 @@ This mirrors the `{phase-id}/{step-id}` identifier format.
 - Step is not in-progress (no status attribute) → "Step {step-id} is not in-progress (status may have been manually removed). Run `/ManageImpStep prepare` to resume."
 - Step has `status: done` in plan → "Step {step-id} is already done. Remove `status: done` from the HTML comment, then run `/ManageImpStep prepare`."
 
-**Artifact:** None (just reports)
+**Artifact:** Findings file (`*.findings.md`) — written on FAIL/PARTIAL/BLOCKED, deleted on PASS
+
+---
+
+### `/ManageImpStep fix`
+
+**Purpose:** Apply targeted fixes for failed validation criteria using findings file.
+
+**Parameters:**
+1. `<packet>` — path to detailed step implementation packet (required)
+2. `[extra-feedback]` — additional context beyond findings file (optional)
+
+**Usage:**
+```
+/ManageImpStep fix plans/personal-finance/personal-finance-steps/review-decision/decide-add-mapping.md
+/ManageImpStep fix <packet> "the approach for criterion 12 should use batch-meta.json"
+```
+
+**Behavior:**
+1. Read packet file, validate YAML frontmatter
+2. Check plan status — step must be `in-progress`
+3. Read findings file (derived from packet path: `.md` → `.findings.md`)
+4. For each failed criterion: apply TDD fix (tests first, then implementation)
+5. Run full test suite + type check
+
+**Key prompt:**
+> "Fix ONLY the criteria listed in the findings file. Every change must trace back to a specific failed criterion. Do not fix unrelated issues or improve passing code."
+
+**Error handling:**
+- Packet not found → "Packet not found: {path}"
+- No findings file → "No findings file found at {path}. Run `/ManageImpStep validate` first."
+- Findings show PASS → "Findings show PASS — nothing to fix."
+- Step not in-progress → same errors as other workflows
+
+**Artifact:** Code changes (targeted to failed criteria only)
 
 ---
 
@@ -463,7 +497,8 @@ Each workflow now includes:
 | **Prepare** | Create packet documentation only | Only the packet `.md` file + plan status |
 | **Check** | Enhance packet documentation only | Only the packet `.md` file |
 | **Execute** | Implement exactly what packet specifies | Implementation files (code, config, tests) |
-| **Validate** | Report pass/fail status only | Nothing (read-only, no Write/Edit tools) |
+| **Validate** | Report pass/fail status only | Only findings file (Write tool scoped to `*.findings.md`) |
+| **Fix** | Fix only failed criteria from findings | Implementation files (code, config, tests) |
 | **Done** | Mark completion only | Only the plan `.md` file |
 
 ### Key Insight
@@ -478,6 +513,72 @@ Two workflows have explicit STOP checks before reporting:
 - **Execute** (Step 10): Verify stayed in scope, no extra features or out-of-scope fixes
 
 These act as a final self-verification to catch scope violations before completing the workflow.
+
+## Findings File & Fix Workflow
+
+### Problem
+
+When `/ManageImpStep validate` finds issues, there was no structured way to communicate those issues to a fix step — especially across sessions or in programmatic (non-interactive) execution.
+
+### Solution: Findings File
+
+The validate workflow writes a structured findings file when validation fails. The fix workflow reads it.
+
+**Path convention:** Same as packet path, but `.md` replaced by `.findings.md`:
+```
+plans/foo/bar-steps/phase/step.md              ← packet
+plans/foo/bar-steps/phase/step.findings.md     ← findings (transient)
+```
+
+**Lifecycle:**
+- `validate FAIL/PARTIAL/BLOCKED` → creates/overwrites findings file
+- `fix` → reads findings file, applies targeted fixes
+- `validate PASS` → deletes findings file
+- `done` → findings file should not exist (validate must pass first)
+
+**Key design decisions:**
+
+1. **Overwrite, not append.** Each validate run produces a complete snapshot of current state. No versioning, no counters, no status tracking per finding. The file always reflects the latest validation result.
+
+2. **No file on PASS.** File existence = there are issues. File absence = clean (or never validated). This avoids cluttering the filesystem with "everything is fine" files.
+
+3. **Not committed.** The findings file is a transient artifact (like coverage reports). The validate workflow treats `*.findings.md` as a known side effect in the git status audit.
+
+4. **Structured for machine reading.** YAML frontmatter with `result` field, `## Failed` section with H3 per criterion, each with `**Expected**`, `**Found**`, `**Packet section**` fields. The fix workflow can parse this to understand what to fix and where to find the specification.
+
+### Fix Workflow Rationale
+
+**Why separate from Execute?** Execute and Fix are conceptually different operations:
+
+| Aspect | Execute | Fix |
+|--------|---------|-----|
+| Purpose | Implement from scratch | Correct specific issues |
+| Scope | Full packet | Only failed criteria |
+| Context needed | Full packet + design doc | Findings + relevant packet sections |
+| TDD approach | Write all tests, then implement | Write tests for gaps, then fix |
+| Prompt optimization | Greenfield implementation | Targeted correction |
+
+Mixing both into Execute with a conditional flag would dilute the prompt quality for both use cases.
+
+**The VALIDATE → FIX → VALIDATE loop:**
+```
+EXECUTE → VALIDATE ──→ DONE
+             ↑    ↓
+             └── FIX
+```
+
+This loop can repeat multiple times. Each iteration:
+1. Validate produces a fresh findings file (complete snapshot)
+2. Fix reads findings, applies targeted corrections
+3. Validate re-checks everything from scratch
+
+### Benefits
+
+| Scenario | How findings file helps |
+|----------|----------------------|
+| Same session | Structured data instead of relying on conversation context (which may be summarized at high context usage) |
+| Cross session | Findings persist on disk — new session reads them without needing the previous conversation |
+| Programmatic | `claude -p "/ManageImpStep validate ..."` followed by `claude -p "/ManageImpStep fix ..."` — each invocation is stateless, findings file is the shared state |
 
 ## Future Enhancements
 
@@ -499,6 +600,7 @@ The step workflow is implemented as a global Claude Code skill with workflows:
     ├── check.md          → /ManageImpStep check
     ├── execute.md        → /ManageImpStep execute
     ├── validate.md       → /ManageImpStep validate
+    ├── fix.md            → /ManageImpStep fix
     └── done.md           → /ManageImpStep done
 ```
 

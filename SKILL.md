@@ -1,6 +1,6 @@
 ---
 name: ManageImpStep
-description: Drive multi-step plan implementation with focused context packets. USE WHEN step prepare OR step check OR step execute OR step validate OR step done OR implementation workflow OR plan packet.
+description: Drive multi-step plan implementation with focused context packets. USE WHEN step prepare OR step check OR step execute OR step validate OR step fix OR step done OR implementation workflow OR plan packet.
 allowed-tools: Read
 ---
 
@@ -22,14 +22,15 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 | **Check** | `/ManageImpStep check <packet>` | `Workflows/Check.md` |
 | **Execute** | `/ManageImpStep execute <packet>` | `Workflows/Execute.md` |
 | **Validate** | `/ManageImpStep validate <packet>` | `Workflows/Validate.md` |
+| **Fix** | `/ManageImpStep fix <packet> [extra-feedback]` | `Workflows/Fix.md` |
 | **Done** | `/ManageImpStep done <packet> [--no-commit]` | `Workflows/Done.md` |
 
 ## Workflow Flow
 
 ```
-PREPARE → CHECK (optional) → EXECUTE → VALIDATE → DONE
-   │                            │          │
-   └── creates packet           └──────────┴── can repeat until pass
+PREPARE → CHECK (optional) → EXECUTE → VALIDATE ──→ DONE
+   │                                      ↑    ↓
+   └── creates packet                     └── FIX
 ```
 
 ## Status Values
@@ -69,6 +70,14 @@ User: "/ManageImpStep check <packet>" → verifies packet completeness
 User: "/ManageImpStep execute <packet>" → implements the step
 User: "/ManageImpStep validate <packet>" → runs tests, checks criteria
 User: "/ManageImpStep done <packet>" → marks done, commits (default)
+```
+
+**Example 4: Fix failed validation**
+```
+User: "/ManageImpStep validate <packet>" → FAIL, writes findings file
+User: "/ManageImpStep fix <packet>" → reads findings, applies targeted TDD fixes
+User: "/ManageImpStep validate <packet>" → PASS, deletes findings file
+User: "/ManageImpStep done <packet>" → marks done, commits
 ```
 
 ## References
