@@ -402,6 +402,8 @@ result: FAIL|PARTIAL|BLOCKED
 
 ### If ALL checks PASS:
 
+> **⚠️ BEFORE reporting PASS:** Delete `FINDINGS_PATH` if it exists (from a previous failed run). This is Step 9 — do NOT skip it. Report the cleanup in the output below.
+
 ```
 ✅ Validation PASSED: {STEP_ID}
 
@@ -411,6 +413,7 @@ Tests: {passed}/{total} passing
 Files: All required files exist
 Acceptance criteria: {verified}/{total} verified
 Git status: ✓ Clean (only expected deliverables)
+{If findings file existed and was deleted: "Findings cleanup: ✓ Deleted stale findings file from previous run"}
 
 Next: Run `/ManageImpStep done {PACKET_PATH}` to mark step complete.
 ```

@@ -131,7 +131,11 @@ Change the HTML comment from in-progress to done:
 
 Write the modified plan back to `PLAN_PATH` using Edit tool.
 
-### 9. Handle Commit (default)
+### 9. Clean Up Stale Findings File
+
+**Safety check:** Before committing, check if a findings file exists at `FINDINGS_PATH` (packet path with `.md` replaced by `.findings.md`). If it exists, delete it — it's a transient artifact from the validate/fix cycle and must not be committed or left behind.
+
+### 10. Handle Commit (default)
 
 Unless `--no-commit` flag is provided:
 
