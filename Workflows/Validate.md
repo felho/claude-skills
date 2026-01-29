@@ -1,17 +1,20 @@
 ---
 name: ValidateStep
-description: Verify implementation meets acceptance criteria from packet using parallel validation agents
-argument-hint: <packet-path>
+description: Verify implementation meets acceptance criteria from packet
+argument-hint: <packet-path> [--agents N]
 allowed-tools: Read, Write, Bash, Glob, Grep, Task
 # Note: Write is ONLY for the findings file, never for implementation files
-# Note: Task is used to launch parallel validation agents
+# Note: Task is used to launch parallel validation agents (only when --agents > 1)
 ---
 
 # Validate Step Implementation
 
 ## Purpose
 
-Verify that the implementation meets ALL acceptance criteria defined in the step packet. Launches multiple parallel validation agents to reduce the risk of missed findings due to LLM non-determinism. Results are merged using a union strategy: if ANY agent finds an issue, it counts as a finding.
+Verify that the implementation meets ALL acceptance criteria defined in the step packet. Supports two validation modes:
+
+- **Single-agent mode** (default, `--agents 1`): Runs all checks inline in the main agent. Fast and sufficient for most steps.
+- **Multi-agent mode** (`--agents N` where N > 1): Launches N parallel validation agents to reduce the risk of missed findings due to LLM non-determinism. Results are merged using a union strategy: if ANY agent finds an issue, it counts as a finding.
 
 ## Variables
 
@@ -19,9 +22,9 @@ PACKET_PATH: $1
 FINDINGS_PATH: PACKET_PATH with `.md` replaced by `.findings.md`
   Example: `decide-add-mapping.md` → `decide-add-mapping.findings.md`
 
-PARALLEL_AGENTS: 3
-  Number of parallel validation agents to launch. Each agent independently
-  verifies the same acceptance criteria. Default: 3.
+PARALLEL_AGENTS: Parse from `--agents N` flag in arguments. Default: 1.
+  - If 1 → single-agent mode (inline validation, no Task tool needed)
+  - If >1 → multi-agent mode (launch N parallel validation agents via Task tool)
 
 KNOWN_SIDE_EFFECTS:
 - `.claude/settings.local.json` — Permission changes during session
@@ -49,9 +52,11 @@ TEMP_ARTIFACT_PATTERNS:
 
 **Thorough verification, not re-implementation.** This workflow checks that what was built meets the specification — it does not fix issues or write code.
 
-### Parallel Validation Strategy
+### Validation Strategy
 
-LLMs are non-deterministic — a single validation pass may miss issues that another pass catches. To mitigate this:
+**Single-agent mode** (`PARALLEL_AGENTS = 1`): The main agent (you) runs all checks directly — type check, tests, file existence, acceptance criteria, and git status audit. No subagents are launched.
+
+**Multi-agent mode** (`PARALLEL_AGENTS > 1`): LLMs are non-deterministic — a single validation pass may miss issues that another pass catches. To mitigate this:
 - Launch `PARALLEL_AGENTS` independent validation agents, each reviewing the same packet
 - Each agent runs type checks, tests, file existence, and acceptance criteria verification independently
 - Merge results using **union strategy**: if ANY agent reports a criterion as FAIL, it is FAIL in the final result
@@ -112,7 +117,59 @@ Identify the app directory for running type checks and tests:
 - This is typically the directory containing `package.json` and `tsconfig.json`
 - Store as `APP_DIR`
 
-### Phase B: Parallel Validation (Delegated Agents)
+### Phase B: Validation Checks
+
+The execution path depends on `PARALLEL_AGENTS`.
+
+<validation-checks>
+The following four checks apply in BOTH modes. In single-agent mode, the main agent runs them directly. In multi-agent mode, each subagent runs them independently.
+
+**Check 1: Type Check**
+
+Run in the app directory (`APP_DIR`):
+```bash
+cd {APP_DIR} && bunx tsc --noEmit
+```
+Record: PASS or FAIL with error details.
+
+**Check 2: Test Suite**
+
+Run in the app directory (`APP_DIR`):
+```bash
+cd {APP_DIR} && bun run test
+```
+Record: PASS or FAIL. Note total passed/total tests and any failing test names.
+
+**Check 3: File Existence**
+
+For each file mentioned in the Step Definition section of the packet, verify the file exists using the Glob or Read tool. Record each as: exists or missing.
+
+**Check 4: Acceptance Criteria Verification**
+
+This is the most important check. For EACH numbered criterion in the "Acceptance Criteria" section of the packet:
+
+1. Read the relevant source files to verify the criterion is met
+2. Cross-reference with test results where applicable
+3. Check that error messages match exact format from the spec
+4. Verify edge cases mentioned in the packet
+5. Check ALL sections of the packet — not just "Acceptance Criteria" but also "Step Definition", "Test Cases", "Review Step Completion", "Implementation Notes", and any other sections that describe expected behavior
+
+**Be thorough:** Read the actual source code. Don't just trust that tests cover everything — verify the implementation logic directly.
+</validation-checks>
+
+---
+
+#### If PARALLEL_AGENTS = 1 (Single-Agent Mode)
+
+### 5. Run Validation Checks Inline
+
+Run all four checks from `<validation-checks>` directly in the main agent. No subagents are launched.
+
+Then proceed to step 7 (Git Status Audit).
+
+---
+
+#### If PARALLEL_AGENTS > 1 (Multi-Agent Mode)
 
 ### 5. Launch Parallel Validation Agents
 
@@ -194,8 +251,6 @@ ADDITIONAL_FINDINGS:
 **IMPORTANT:** Number the criteria to match the acceptance criteria numbering in the packet. If the packet has criteria as checkboxes without explicit numbers, number them in order (1, 2, 3...).
 </validation-agent-prompt>
 
-### Phase C: Post-Validation (Main Agent)
-
 ### 6. Merge Agent Results
 
 After all `PARALLEL_AGENTS` agents complete, merge their results:
@@ -211,6 +266,10 @@ After all `PARALLEL_AGENTS` agents complete, merge their results:
 **Deduplication:** When multiple agents report the same criterion as FAIL, keep the most detailed description. When agents describe the same issue with different wording, consolidate into one finding.
 
 **Report agent agreement:** In the final output, note how many agents agreed on each finding. Example: "Found by 2/3 agents" or "Found by 1/3 agents" — this helps assess confidence.
+
+---
+
+### Phase C: Post-Validation (Main Agent)
 
 ### 7. Git Status Audit
 
@@ -258,7 +317,7 @@ How should I handle these files?
 
 ### 8. Compile Results
 
-Aggregate all merged check results from step 6 and git status audit from step 7:
+Aggregate all check results (from step 5 in single-agent mode, or merged results from step 6 in multi-agent mode) and git status audit from step 7:
 - Type check: PASS/FAIL
 - Tests: X/Y passing
 - Files: all exist / N missing
@@ -319,7 +378,7 @@ result: FAIL|PARTIAL|BLOCKED
 ```
 ✅ Validation PASSED: {STEP_ID}
 
-Agents: {PARALLEL_AGENTS}/{PARALLEL_AGENTS} agree — no issues found
+{If PARALLEL_AGENTS > 1: "Agents: {PARALLEL_AGENTS}/{PARALLEL_AGENTS} agree — no issues found"}
 Type check: ✓ No errors
 Tests: {passed}/{total} passing
 Files: All required files exist
@@ -334,7 +393,7 @@ Next: Run `/ManageImpStep done {PACKET_PATH}` to mark step complete.
 ```
 ❌ Validation FAILED: {STEP_ID}
 
-Agents: {N}/{PARALLEL_AGENTS} found issues
+{If PARALLEL_AGENTS > 1: "Agents: {N}/{PARALLEL_AGENTS} found issues"}
 Type check: {✓ or ✗ with error count}
 Tests: {passed}/{total} passing
   - {failing test 1}
@@ -342,7 +401,7 @@ Tests: {passed}/{total} passing
 Files: {status}
   - Missing: {file1}, {file2}
 Acceptance criteria: {verified}/{total}
-  - ✗ {failed criterion} (found by {M}/{PARALLEL_AGENTS} agents)
+  - ✗ {failed criterion} {If PARALLEL_AGENTS > 1: "(found by {M}/{PARALLEL_AGENTS} agents)"}
 Git status: {✓ or ⚠️ if issues}
 
 Findings written to: {FINDINGS_PATH}
