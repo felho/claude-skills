@@ -125,6 +125,10 @@ Identify the app directory for running type checks and tests:
 
 ### Phase B: Validation Checks
 
+> **⚠️ GATE CHECK:** What is the value of PARALLEL_AGENTS?
+> - If 1 (default): You MUST run all checks inline using Read, Grep, Glob, and Bash. **DO NOT use the Task tool.** Proceed to "If PARALLEL_AGENTS = 1" section.
+> - If >1: Proceed to "If PARALLEL_AGENTS > 1" section. Task tool is required.
+
 The execution path depends on `PARALLEL_AGENTS`.
 
 <validation-checks>
