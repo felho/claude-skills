@@ -415,7 +415,7 @@ Git status: ✓ Clean (only expected deliverables)
 Next: Run `/ManageImpStep done {PACKET_PATH}` to mark step complete.
 ```
 
-### If ANY check FAILS:
+### If ANY check FAILS or PARTIAL:
 
 ```
 ❌ Validation FAILED: {STEP_ID}
@@ -457,6 +457,16 @@ Findings written to: {FINDINGS_PATH}
 If manual checks pass, run `/ManageImpStep done {PACKET_PATH}`.
 If automated fixes are needed, run `/ManageImpStep fix {PACKET_PATH}`.
 ```
+
+## Auto-Suggest
+
+Auto-suggest the next command based on the validation result:
+
+- **PASS** → `/ManageImpStep done {PACKET_PATH} -n`
+- **FAIL** or **PARTIAL** → `/ManageImpStep fix {PACKET_PATH} -n`
+- **BLOCKED** → do not auto-suggest (requires user decision)
+
+Replace `{PACKET_PATH}` with the actual packet path used in this run.
 
 ### If BLOCKED (unknown files in git status):
 

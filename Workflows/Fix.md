@@ -212,6 +212,16 @@ Next steps:
 - {what needs to happen}
 ```
 
+## Auto-Suggest
+
+After successful fix (all tests pass), auto-suggest the next command for the user:
+
+```
+/ManageImpStep validate {PACKET_PATH} -n
+```
+
+Replace `{PACKET_PATH}` with the actual packet path used in this run.
+
 ---
 
 ## 🛑 HARD STOP — DO NOT PROCEED

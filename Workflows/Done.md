@@ -181,3 +181,13 @@ Next step: Run `/ManageImpStep prepare {PLAN_PATH} {DESIGN_DOC_PATH}` to prepare
 ```
 ❌ {error_message}
 ```
+
+## Auto-Suggest
+
+After successfully marking a step done, auto-suggest the next command for the user:
+
+```
+/ManageImpStep prepare {PLAN_PATH} {DESIGN_DOC_PATH} -n
+```
+
+Replace `{PLAN_PATH}` and `{DESIGN_DOC_PATH}` with the actual paths from the packet frontmatter.

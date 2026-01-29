@@ -240,3 +240,13 @@ After successful preparation, always include:
 3. Suggested next command
 
 **Remember:** You prepared a PACKET (documentation). You did NOT implement anything. Implementation is the user's next step via `/ManageImpStep execute`.
+
+## Auto-Suggest
+
+After successful preparation, auto-suggest the next command for the user:
+
+```
+/ManageImpStep check {PACKET_PATH} -n
+```
+
+Replace `{PACKET_PATH}` with the actual packet path created in this run.

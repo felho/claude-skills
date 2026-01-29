@@ -211,6 +211,16 @@ After execution, always include:
 2. If updated: summary of additions
 3. Suggested next command
 
+## Auto-Suggest
+
+After a successful check (whether packet was already complete or was updated), auto-suggest the next command for the user:
+
+```
+/ManageImpStep execute {PACKET_PATH} -n
+```
+
+Replace `{PACKET_PATH}` with the actual packet path used in this run.
+
 ## Idempotency Note
 
 This workflow is idempotent — running it multiple times will not duplicate information. Each run:
