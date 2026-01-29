@@ -363,7 +363,7 @@ This mirrors the `{phase-id}/{step-id}` identifier format.
 
 ### `/ManageImpStep validate`
 
-**Purpose:** Verify implementation meets acceptance criteria.
+**Purpose:** Verify implementation meets acceptance criteria using parallel validation agents.
 
 **Usage:**
 ```
@@ -371,13 +371,17 @@ This mirrors the `{phase-id}/{step-id}` identifier format.
 ```
 
 **Behavior:**
-1. Read packet file, extract acceptance criteria
-2. Run checks:
+1. Read packet file, extract acceptance criteria (deterministic pre-validation)
+2. Launch N parallel validation agents (default 3, configurable via `PARALLEL_AGENTS`), each independently running:
    - `tsc --noEmit` (type check)
    - `bun run test` (tests pass)
    - File existence checks
-   - Custom criteria from step
-3. Output: pass/fail with details
+   - Acceptance criteria verification against source code
+3. Merge agent results using union strategy (if ANY agent finds an issue, it counts)
+4. Run git status audit (deterministic, main agent)
+5. Output: pass/fail with details and agent agreement info
+
+**Why parallel agents?** LLMs are non-deterministic — a single validation pass may miss issues that another pass catches. Running multiple independent agents and merging with union strategy reduces false negatives.
 
 **Key prompt:**
 > "Verify the implementation meets ALL acceptance criteria from the packet. Run all specified checks. Report clearly what passed and what failed."
@@ -497,13 +501,13 @@ Each workflow now includes:
 | **Prepare** | Create packet documentation only | Only the packet `.md` file + plan status |
 | **Check** | Enhance packet documentation only | Only the packet `.md` file |
 | **Execute** | Implement exactly what packet specifies | Implementation files (code, config, tests) |
-| **Validate** | Report pass/fail status only | Only findings file (Write tool scoped to `*.findings.md`) |
+| **Validate** | Report pass/fail status only | Only findings file (Write tool scoped to `*.findings.md`); Task tool for parallel validation agents |
 | **Fix** | Fix only failed criteria from findings | Implementation files (code, config, tests) |
 | **Done** | Mark completion only | Only the plan `.md` file |
 
 ### Key Insight
 
-**Validate** is naturally protected — it has no Write/Edit tools, so it physically cannot modify files. The other workflows needed explicit guardrails because they have modification capabilities that could be misused.
+**Validate** is naturally protected — it can only write findings files and launch read-only validation agents (via Task tool). It cannot modify implementation files. The other workflows needed explicit guardrails because they have broader modification capabilities that could be misused.
 
 ### STOP Checks
 

@@ -1,22 +1,27 @@
 ---
 name: ValidateStep
-description: Verify implementation meets acceptance criteria from packet
+description: Verify implementation meets acceptance criteria from packet using parallel validation agents
 argument-hint: <packet-path>
-allowed-tools: Read, Write, Bash, Glob, Grep
+allowed-tools: Read, Write, Bash, Glob, Grep, Task
 # Note: Write is ONLY for the findings file, never for implementation files
+# Note: Task is used to launch parallel validation agents
 ---
 
 # Validate Step Implementation
 
 ## Purpose
 
-Verify that the implementation meets ALL acceptance criteria defined in the step packet. Run automated checks and report pass/fail status.
+Verify that the implementation meets ALL acceptance criteria defined in the step packet. Launches multiple parallel validation agents to reduce the risk of missed findings due to LLM non-determinism. Results are merged using a union strategy: if ANY agent finds an issue, it counts as a finding.
 
 ## Variables
 
 PACKET_PATH: $1
 FINDINGS_PATH: PACKET_PATH with `.md` replaced by `.findings.md`
   Example: `decide-add-mapping.md` → `decide-add-mapping.findings.md`
+
+PARALLEL_AGENTS: 3
+  Number of parallel validation agents to launch. Each agent independently
+  verifies the same acceptance criteria. Default: 3.
 
 KNOWN_SIDE_EFFECTS:
 - `.claude/settings.local.json` — Permission changes during session
@@ -44,6 +49,14 @@ TEMP_ARTIFACT_PATTERNS:
 
 **Thorough verification, not re-implementation.** This workflow checks that what was built meets the specification — it does not fix issues or write code.
 
+### Parallel Validation Strategy
+
+LLMs are non-deterministic — a single validation pass may miss issues that another pass catches. To mitigate this:
+- Launch `PARALLEL_AGENTS` independent validation agents, each reviewing the same packet
+- Each agent runs type checks, tests, file existence, and acceptance criteria verification independently
+- Merge results using **union strategy**: if ANY agent reports a criterion as FAIL, it is FAIL in the final result
+- The main agent (you) handles deterministic checks (input validation, git status audit) and merges agent results
+
 ### Check Categories
 
 1. **Type Check** — TypeScript compiles without errors
@@ -62,11 +75,16 @@ TEMP_ARTIFACT_PATTERNS:
 
 ## Workflow
 
+### Phase A: Pre-Validation (Main Agent)
+
+These steps are deterministic and run once in the main agent.
+
 ### 1. Validate Input
 
 - If `PACKET_PATH` is empty → STOP and report: `"Usage: /ManageImpStep validate <packet>"`
 - Read packet file at `PACKET_PATH`
   - If file not found → STOP with "Packet not found" error
+- Store the full packet content as `PACKET_CONTENT`
 
 ### 2. Parse Packet Frontmatter
 
@@ -87,60 +105,114 @@ If any required field is missing → STOP with "Invalid packet" error
   - If `status: done` → STOP with "Step already done" error
   - If `status: in-progress` → continue
 
-### 4. Extract Validation Criteria from Packet
+### 4. Determine App Directory
 
-Read the full packet and extract:
+Identify the app directory for running type checks and tests:
+- Look at the packet's implementation notes or file paths to determine the app directory
+- This is typically the directory containing `package.json` and `tsconfig.json`
+- Store as `APP_DIR`
 
-<validation-sections>
-- **Step Definition** — Files to create, checkboxes (implies file existence checks)
-- **Test Cases** — Tests that should pass
-- **Acceptance Criteria** — Definition of done (each criterion to verify)
-- **Implementation Notes** — Any specific validation requirements
-</validation-sections>
+### Phase B: Parallel Validation (Delegated Agents)
 
-### 5. Run Type Check
+### 5. Launch Parallel Validation Agents
 
-```bash
-tsc --noEmit
+Launch `PARALLEL_AGENTS` Task agents **in a single message** (all in parallel) using `subagent_type: "general-purpose"`. Each agent receives the same prompt constructed from the template below.
+
+**IMPORTANT:** All agents MUST be launched in a single message to ensure true parallel execution. Do NOT launch them sequentially.
+
+<validation-agent-prompt>
+You are a validation agent. Your job is to independently verify that an implementation meets its acceptance criteria. Be thorough and skeptical — look for issues that might be easy to miss.
+
+## Step Packet
+
+```
+{PACKET_CONTENT}
 ```
 
-- Record result: PASS or FAIL with error details
-- If project doesn't use TypeScript, skip this check
+## Your Task
 
-### 6. Run Test Suite
+Verify the implementation against the acceptance criteria in the packet above. Work through each check category independently.
 
+### Check 1: Type Check
+
+Run in the app directory (`{APP_DIR}`):
 ```bash
-bun run test
+cd {APP_DIR} && bunx tsc --noEmit
+```
+Record: PASS or FAIL with error details.
+
+### Check 2: Test Suite
+
+Run in the app directory (`{APP_DIR}`):
+```bash
+cd {APP_DIR} && bun run test
+```
+Record: PASS or FAIL. Note total passed/total tests and any failing test names.
+
+### Check 3: File Existence
+
+For each file mentioned in the Step Definition section of the packet, verify the file exists using the Glob or Read tool. Record each as: exists or missing.
+
+### Check 4: Acceptance Criteria Verification
+
+This is the most important check. For EACH numbered criterion in the "Acceptance Criteria" section of the packet:
+
+1. Read the relevant source files to verify the criterion is met
+2. Cross-reference with test results where applicable
+3. Check that error messages match exact format from the spec
+4. Verify edge cases mentioned in the packet
+5. Check ALL sections of the packet — not just "Acceptance Criteria" but also "Step Definition", "Test Cases", "Review Step Completion", "Implementation Notes", and any other sections that describe expected behavior
+
+**Be thorough:** Read the actual source code. Don't just trust that tests cover everything — verify the implementation logic directly.
+
+### Output Format
+
+Return your results in EXACTLY this format:
+
+```
+TYPE_CHECK: PASS|FAIL
+TYPE_CHECK_DETAILS: {error details if FAIL, "No errors" if PASS}
+
+TEST_SUITE: PASS|FAIL
+TEST_SUITE_DETAILS: {passed}/{total} tests passing
+TEST_FAILURES: {list of failing tests, or "None"}
+
+FILE_EXISTENCE: PASS|FAIL
+MISSING_FILES: {list of missing files, or "None"}
+
+CRITERIA_RESULTS:
+#1: PASS|FAIL|MANUAL — {criterion description}
+  DETAILS: {what you verified and how}
+#2: PASS|FAIL|MANUAL — {criterion description}
+  DETAILS: {what you verified and how}
+...continue for all criteria...
+
+ADDITIONAL_FINDINGS:
+{Any issues found that don't map to a specific criterion number, or "None"}
 ```
 
-(Or project's test command if different)
+**IMPORTANT:** Number the criteria to match the acceptance criteria numbering in the packet. If the packet has criteria as checkboxes without explicit numbers, number them in order (1, 2, 3...).
+</validation-agent-prompt>
 
-- Record result: PASS or FAIL with failing test details
-- Count: passed/total tests
+### Phase C: Post-Validation (Main Agent)
 
-### 7. Verify File Existence
+### 6. Merge Agent Results
 
-For each file mentioned in Step Definition:
+After all `PARALLEL_AGENTS` agents complete, merge their results:
 
-<file-check-loop>
-- Check if file exists using Glob or Read
-- Record: exists or missing
-</file-check-loop>
+**Merge rules:**
+- **Union strategy:** If ANY agent reports a criterion as FAIL → it is FAIL in the merged result
+- **Type check:** FAIL if any agent reports FAIL
+- **Test suite:** FAIL if any agent reports FAIL (use the most detailed failure report)
+- **File existence:** FAIL if any agent reports missing files
+- **Acceptance criteria:** For each criterion number, FAIL if ANY agent marked it FAIL
+- **Additional findings:** Collect all unique additional findings from all agents
 
-### 8. Verify Acceptance Criteria
+**Deduplication:** When multiple agents report the same criterion as FAIL, keep the most detailed description. When agents describe the same issue with different wording, consolidate into one finding.
 
-For each criterion in the Acceptance Criteria section:
+**Report agent agreement:** In the final output, note how many agents agreed on each finding. Example: "Found by 2/3 agents" or "Found by 1/3 agents" — this helps assess confidence.
 
-<criteria-check-loop>
-- Determine verification method:
-  - Code behavior → check via test results
-  - File content → read and verify
-  - Configuration → inspect file
-  - Manual check → note as "requires manual verification"
-- Record: PASS, FAIL, or MANUAL
-</criteria-check-loop>
-
-### 9. Git Status Audit
+### 7. Git Status Audit
 
 **Purpose:** Ensure no unexpected files will be committed. Distinguish deliverables from interim artifacts.
 
@@ -184,9 +256,9 @@ How should I handle these files?
 
 **IMPORTANT:** Do NOT proceed to "Validation PASSED" if there are unknown files. The user must explicitly confirm how to handle them.
 
-### 10. Compile Results
+### 8. Compile Results
 
-Aggregate all check results:
+Aggregate all merged check results from step 6 and git status audit from step 7:
 - Type check: PASS/FAIL
 - Tests: X/Y passing
 - Files: all exist / N missing
@@ -199,9 +271,9 @@ Determine overall status:
 - **PARTIAL** — Automated pass, but has manual verification items
 - **BLOCKED** — Unknown files in git status need user input
 
-### 11. Write or Delete Findings File
+### 9. Write or Delete Findings File
 
-Based on the overall status determined in step 10:
+Based on the overall status determined in step 8:
 
 - If **PASS** → delete `FINDINGS_PATH` if it exists (silently, no error if absent)
 - If **FAIL**, **PARTIAL**, or **BLOCKED** → write structured findings to `FINDINGS_PATH`
@@ -247,6 +319,7 @@ result: FAIL|PARTIAL|BLOCKED
 ```
 ✅ Validation PASSED: {STEP_ID}
 
+Agents: {PARALLEL_AGENTS}/{PARALLEL_AGENTS} agree — no issues found
 Type check: ✓ No errors
 Tests: {passed}/{total} passing
 Files: All required files exist
@@ -261,6 +334,7 @@ Next: Run `/ManageImpStep done {PACKET_PATH}` to mark step complete.
 ```
 ❌ Validation FAILED: {STEP_ID}
 
+Agents: {N}/{PARALLEL_AGENTS} found issues
 Type check: {✓ or ✗ with error count}
 Tests: {passed}/{total} passing
   - {failing test 1}
@@ -268,7 +342,7 @@ Tests: {passed}/{total} passing
 Files: {status}
   - Missing: {file1}, {file2}
 Acceptance criteria: {verified}/{total}
-  - ✗ {failed criterion}
+  - ✗ {failed criterion} (found by {M}/{PARALLEL_AGENTS} agents)
 Git status: {✓ or ⚠️ if issues}
 
 Findings written to: {FINDINGS_PATH}
