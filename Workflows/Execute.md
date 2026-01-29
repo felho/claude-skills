@@ -137,12 +137,31 @@ Based on Test Cases section:
 
 Based on Step Definition and Design Document sections:
 
+> **⚠️ Pre-Edit Checklist — EVERY file, EVERY time**
+>
+> Before editing ANY existing `.ts` file, run the Pre-Edit Checklist:
+>
+> ```
+> Pre-Edit Checklist for [filename.ts]:
+> - [ ] Read the test file: [test filename or "no test file exists"]
+> - [ ] Tests need updating: yes/no/no test file
+> - [ ] If yes: edit test FIRST, run tests, then edit implementation
+> ```
+>
+> **The refactoring trap:** When refactoring existing code to use a new shared helper,
+> it's tempting to treat it as "just moving code around." But if behavior changes
+> (e.g., checking full prerequisite chain instead of just immediate predecessor),
+> the existing tests must be updated FIRST to cover the new behavior.
+>
+> See: [PreEditCheck workflow](../../WriteCode/Workflows/PreEditCheck.md)
+
 <implement>
 1. Create/modify files as specified in Step Definition
-2. Follow patterns from Design Document
-3. Use exact error messages from Implementation Notes
-4. Handle edge cases documented in the packet
-5. Keep implementation minimal — only what's specified
+2. **For each existing file:** Run Pre-Edit Checklist before editing
+3. Follow patterns from Design Document
+4. Use exact error messages from Implementation Notes
+5. Handle edge cases documented in the packet
+6. Keep implementation minimal — only what's specified
 </implement>
 
 ### 7. Run Tests
