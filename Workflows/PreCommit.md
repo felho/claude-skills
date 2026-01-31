@@ -50,7 +50,12 @@ When fixing infrastructure issues or other problems mid-task, be careful not to 
 - [ ] **One logical change:** Review all modified files — are these ALL part of ONE logical change? Apply the "and also" test: if explaining these changes requires saying "and also" or "separately," split into multiple commits.
 - [ ] **Tests pass**
 - [ ] **Plan updated** (checkboxes, counter, current step)
-- [ ] **Docs sync:** If new command/feature added → check app's `README.md`
+- [ ] **Docs sync:** Which docs reference the changed behavior? Check ALL triggers:
+  - New command → app's `README.md`
+  - New/changed flag or option → command docs, workflow docs
+  - Changed skip/filter/classification logic → workflow docs (e.g., `docs/*/README.md`, `docs/*-workflow.md`)
+  - Changed type/interface → design doc
+  - Answer: list affected doc files, or write "None found after checking: [files checked]"
 - [ ] **Setup sync:** If ran `chmod`, `mkdir -p`, `npm link` → update `scripts/setup.sh`
 - [ ] **Docs review (MANDATORY for code changes):** Review ALL `docs/*.md` files read during this session. Update if stale.
 - [ ] **Reflection:** Check ALL triggers below
@@ -120,9 +125,9 @@ Before running `git commit`:
 - [ ] One logical change: [yes/no]
 - [ ] Tests pass: [yes/no/N/A]
 - [ ] Plan updated: [yes/no/N/A]
-- [ ] Docs sync: [yes/no/N/A]
+- [ ] Docs sync: [list affected docs OR "None — checked: {files checked}"]
 - [ ] Setup sync: [yes/no/N/A]
-- [ ] Docs review: [yes/no]
+- [ ] Docs review: [list reviewed docs OR "No docs read this session"]
 - [ ] Reflection triggers: [none checked / X checked → action taken]
 
 Ready to commit."
