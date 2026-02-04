@@ -123,6 +123,7 @@ Note: Claude analyzes the step definition for references (e.g., "see section X",
 | State | Representation |
 |-------|----------------|
 | Todo | `<!-- id: excel-parser -->` — no status attribute means todo |
+| Prepared | `<!-- id: excel-parser status: prepared -->` — packet exists and ready |
 | In Progress | `<!-- id: excel-parser status: in-progress -->` |
 | Done | `<!-- id: excel-parser status: done -->` |
 
@@ -138,7 +139,8 @@ The HTML comment (with ID) is always preserved. Only the status attribute change
 
 **Packet-based operations:**
 - `/ManageImpStep check`, `/ManageImpStep execute`, and `/ManageImpStep validate` use the packet as their source of truth
-- All three verify the step is `in-progress` in the plan (error if done or todo)
+- `/ManageImpStep check` accepts `in-progress` or `prepared` status (error if done or todo)
+- `/ManageImpStep execute` and `/ManageImpStep validate` require `in-progress` (error if done, todo, or prepared)
 - Only `/ManageImpStep prepare` and `/ManageImpStep done` write the plan's status attribute
 
 **Benefits:**
@@ -583,6 +585,95 @@ This loop can repeat multiple times. Each iteration:
 | Same session | Structured data instead of relying on conversation context (which may be summarized at high context usage) |
 | Cross session | Findings persist on disk — new session reads them without needing the previous conversation |
 | Programmatic | `claude -p "/ManageImpStep validate ..."` followed by `claude -p "/ManageImpStep fix ..."` — each invocation is stateless, findings file is the shared state |
+
+## Prepare-Ahead & Auto-Check
+
+### The `prepared` Status
+
+**State machine:** todo → prepared → in-progress → done
+
+| State | Representation |
+|-------|----------------|
+| Todo | `<!-- id: step-id -->` — no status attribute means todo |
+| Prepared | `<!-- id: step-id status: prepared -->` — packet exists and checked, ready to execute |
+| In Progress | `<!-- id: step-id status: in-progress -->` — currently being implemented |
+| Done | `<!-- id: step-id status: done -->` — complete |
+
+**Key properties:**
+- Multiple steps can be `prepared` simultaneously (no constraint)
+- Only ONE step can be `in-progress` at a time (existing constraint, unchanged)
+- `prepared` is skipped by Execute/Validate/Fix/Done — they all require `in-progress`
+- When a `prepared` step is selected by Prepare (without `--ahead`), it transitions to `in-progress` without regenerating the packet
+
+**Why a new status?** Without `prepared`, there's no way to track which steps already have ready packets. The user would need to manually remember or check the filesystem. With `prepared`, the plan itself records readiness — `git diff` shows exactly which steps were pre-generated.
+
+### `--ahead N` Flag (Batch Packet Generation)
+
+**Problem:** Preparing one step at a time is sequential. If the user knows they'll work through the next N steps, they waste time preparing each one individually.
+
+**Solution:** `--ahead N` finds the next N todo steps and generates packets for all of them in parallel using Task agents.
+
+**Behavior:**
+1. Find next N steps with no status (todo) — skip `prepared`, `in-progress`, `done`
+2. If fewer todo steps than N, use what's available
+3. If zero todo steps → STOP: "No todo steps remaining to prepare ahead."
+4. For each step, launch a parallel Task agent (fresh context, isolated)
+5. After all agents complete: set each successful step to `status: prepared` in the plan
+6. Report list of prepared packets with paths
+
+**Context isolation rationale:** Each Task agent gets its own fresh context containing the full plan, design doc, and the specific step to prepare. This prevents cross-contamination between steps — agent A preparing step X won't be influenced by agent B preparing step Y. It also avoids overloading a single context with multiple steps' worth of detail.
+
+**Partial failure handling:** If 2/3 agents succeed and 1 fails, `prepared` is set only on successful ones. The failed step remains todo. The user can re-run `--ahead` and it will pick up only the remaining todo steps.
+
+### `--auto-check` Flag (Automatic Quality Loop)
+
+**Problem:** After preparing a packet, the user typically runs `/ManageImpStep check` to verify completeness. This is a manual step that could be automated, especially when preparing multiple packets ahead.
+
+**Solution:** `--auto-check` runs a check loop after packet generation until the packet is clean (zero findings) or a maximum iteration count is reached.
+
+**Check loop design:**
+
+```
+prepare packet → check → findings? → fix packet → check → ... → clean (or max 10)
+```
+
+**Stricter finding threshold:** The auto-check loop uses a stricter standard than manual check. Any finding, no matter how small, requires fixing. The only valid "clean" result is zero findings. This ensures "prepared" truly means "ready to execute."
+
+**In ahead mode** (inside each Task agent):
+- The agent runs check inline (it already has fresh context since it's a new agent)
+- Loop: check → fix → check → fix → ... until clean or max 10 iterations
+- Each iteration is sequential within the agent, but agents run in parallel with each other
+
+**In normal mode** (with `--auto-check` flag, no `--ahead`):
+- After prepare completes in the main session, launch a Task agent for the check loop
+- The Task agent receives: packet path, plan path, design doc path
+- Agent loop:
+  1. Read packet, plan, and design doc
+  2. Run check logic (find gaps, verify against source docs)
+  3. If findings → fix packet (edit the file), increment counter, goto 1
+  4. If clean OR counter >= 10 → stop, report result
+- Report: "Check converged after N iterations" or "Check did not converge after 10 iterations — review manually"
+
+**Why a separate agent for normal mode?** The prepare workflow already consumed context generating the packet. Running check in the same context risks "context poisoning" — the model may not catch gaps because it just wrote the content and is biased toward believing it's complete. A fresh agent reads the packet with no prior bias.
+
+### Staleness Handling
+
+Prepared packets are snapshots of the plan + design doc at generation time. If either source document changes after `--ahead` runs, packets may be outdated.
+
+**Current approach:** Manual. The user resets steps to todo (remove `status: prepared` from HTML comments) and re-runs `--ahead`.
+
+**Future consideration:** Hash-based staleness detection (see Future Enhancements) could automatically flag stale prepared packets.
+
+### Combined Flag Usage
+
+Flags are fully combinable:
+
+| Flags | Behavior |
+|-------|----------|
+| (none) | Normal single-step prepare, same as before |
+| `--auto-check` | Prepare single step, then background check loop |
+| `--ahead 3` | Prepare next 3 todo steps in parallel, no check |
+| `--ahead 3 --auto-check` | Prepare next 3 todo steps in parallel, each with check loop |
 
 ## Future Enhancements
 
