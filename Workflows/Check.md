@@ -38,7 +38,7 @@ PACKET_PATH: $1
 - Invalid frontmatter: `"Invalid packet: missing required frontmatter fields (step, plan, design-doc)"`
 - Plan not found: `"Plan file not found: {path}"`
 - Design doc not found: `"Design document not found: {path}"`
-- Step not in-progress (no status): `"Step {step-id} is not in-progress (status may have been manually removed). Run /ManageImpStep prepare to resume."`
+- Step not in-progress or prepared (no status): `"Step {step-id} is not in-progress or prepared. Run /ManageImpStep prepare to resume."`
 - Step already done: `"Step {step-id} is already done. Remove status: done from the HTML comment, then run /ManageImpStep prepare."`
 
 ## Workflow
@@ -68,6 +68,7 @@ If any required field is missing → STOP with "Invalid packet" error
   - If no `status` attribute → STOP with "Step not in-progress" error
   - If `status: done` → STOP with "Step already done" error
   - If `status: in-progress` → continue
+  - If `status: prepared` → continue (packet exists from prepare-ahead)
 
 ### 4. Read Source Documents Thoroughly
 
@@ -100,6 +101,8 @@ Read the ENTIRE plan file at `PLAN_PATH`.
 </completeness-checklist>
 
 **Key question:** If someone implemented this step using ONLY the packet, would they have ALL the information needed? If not, what's missing?
+
+**Stricter threshold:** Any finding, no matter how small, counts as a gap. Do not dismiss findings as "minor" or "not worth fixing." The only valid clean result is zero findings. If a detail is in the source documents but not in the packet, it must be added.
 
 ### 6. Capture Potential Issues (Interim List)
 
