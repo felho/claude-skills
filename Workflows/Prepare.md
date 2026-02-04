@@ -1,8 +1,9 @@
 ---
 description: Create step implementation packet from plan + design doc
-argument-hint: <plan> <design-doc> [phase-id/step-id]
-allowed-tools: Read, Write, Edit, Glob, AskUserQuestion
+argument-hint: <plan> <design-doc> [phase-id/step-id] [--ahead N] [--auto-check]
+allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Task
 # Note: Write/Edit are ONLY for the packet .md file, never for implementation files
+# Note: Task is for parallel prepare-ahead agents and auto-check loop agents
 ---
 
 # Prepare Step Packet
@@ -25,19 +26,24 @@ Create a detailed step implementation packet containing all context needed for i
 
 PLAN_PATH: \$1
 DESIGN_DOC_PATH: \$2
-STEP_ID: \$3
+STEP_ID: \$3 (may be absent if flags are used without a step ID)
+AHEAD_COUNT: from `--ahead N` flag (default: not set — normal mode)
+AUTO_CHECK: from `--auto-check` flag (default: false)
+
+**Flag parsing:** Scan all arguments for `--ahead N` (integer N) and `--auto-check` (boolean). Flags are combinable and order-independent. Remove flags from positional arguments before processing.
 
 ## Instructions
 
 ### Plan Structure Requirements
 
 - **Phase:** H2 heading followed by `<!-- id: phase-id -->`
-- **Step:** H3 heading followed by `<!-- id: step-id -->` or `<!-- id: step-id status: in-progress|done -->`
+- **Step:** H3 heading followed by `<!-- id: step-id -->` or `<!-- id: step-id status: prepared|in-progress|done -->`
 - **Full step ID format:** `{phase-id}/{step-id}`
 
 ### Status Logic
 
 - No `status` attribute = todo
+- `status: prepared` = packet exists, ready to execute
 - `status: in-progress` = currently being worked on
 - `status: done` = completed
 
@@ -55,6 +61,8 @@ Given plan `plans/foo/bar.md` and step `phase-id/step-id`:
 - Multiple in progress: `"Multiple steps in-progress. Fix the plan manually."`
 - Step done: `"Step {step-id} is already done. To re-implement, remove status: done from the HTML comment, then run /ManageImpStep prepare."`
 - Step not found: `"Step not found: {step-id}"`
+- No todo steps for ahead: `"No todo steps remaining to prepare ahead."`
+- Ahead mode with step-id: `"--ahead cannot be combined with a specific step-id. Use --ahead to batch-prepare next N todo steps, or specify a step-id for single prepare."`
 
 ## Workflow
 
@@ -80,13 +88,102 @@ Scan the plan for phases and steps:
 
 If no valid steps found → STOP with "No steps found" error
 
-### 3. Find Step to Prepare
+### 2A. Ahead Mode Branch (when `--ahead` is set)
+
+> If `AHEAD_COUNT` is NOT set, skip to Step 3.
+
+If `STEP_ID` is provided → STOP with "Ahead mode with step-id" error.
+
+<ahead-mode>
+
+**Find steps to prepare:**
+- Filter steps to those with no status attribute (todo only) — skip `prepared`, `in-progress`, `done`
+- Take the first `AHEAD_COUNT` todo steps (in plan order)
+- If zero todo steps → STOP with "No todo steps remaining to prepare ahead."
+- If fewer todo steps than `AHEAD_COUNT`, use what's available
+
+**Launch parallel Task agents:**
+
+For each todo step, launch a Task agent (`subagent_type: general-purpose`) with this prompt:
+
+```
+You are preparing a step packet for an implementation plan.
+
+## Source Documents
+
+Plan file: {PLAN_PATH}
+Design document: {DESIGN_DOC_PATH}
+
+## Step to Prepare
+
+Step ID: {phase-id}/{step-id}
+Step title: {step heading}
+
+## Instructions
+
+1. Read the plan file and design document thoroughly
+2. Extract the step content from the plan (heading + text until next H2/H3)
+3. Gather ALL relevant context from the design document and plan
+4. Compute packet path: {packet-path}
+5. Create the packet markdown file with YAML frontmatter and all sections:
+   - Overview, Step Definition, From Design Document, From Plan (Supporting Sections),
+     Dependencies, Test Cases, Acceptance Criteria, Implementation Notes
+6. Do NOT modify the plan file (status updates are handled by the parent)
+7. Do NOT write code or implementation files — ONLY the packet .md file
+
+{If AUTO_CHECK is true, add:}
+8. After writing the packet, run a check loop:
+   a. Re-read the plan and design doc
+   b. Compare against the packet — find ANY missing details
+   c. If findings exist → edit the packet to add missing information, then repeat from (a)
+   d. If zero findings OR 10 iterations reached → stop
+   e. Report: number of check iterations and whether converged (clean) or not
+
+Report back: step ID, packet path, success/failure, check iterations (if auto-check).
+```
+
+Launch ALL agents in a single message (parallel Task tool calls).
+
+**After all agents complete:**
+
+For each successful agent:
+- Update plan: change `<!-- id: {step-id} -->` to `<!-- id: {step-id} status: prepared -->`
+
+For each failed agent:
+- Leave step as todo (no status change)
+- Collect error message for report
+
+**Report and STOP:**
+
+```
+✅ Prepared {N} steps ahead:
+
+| Step | Packet | Check |
+|------|--------|-------|
+| {step-id-1} | {packet-path-1} | {converged after M iterations / skipped / failed} |
+| {step-id-2} | {packet-path-2} | {converged after M iterations / skipped / failed} |
+...
+
+{If any failures:}
+⚠️ Failed to prepare: {step-id-x} — {error message}
+```
+
+STOP here. Do not continue to normal mode steps.
+
+</ahead-mode>
+
+### 3. Find Step to Prepare (Normal Mode)
 
 <step-selection>
 **If STEP_ID is provided:**
 - Find the step matching `STEP_ID` (format: `phase-id/step-id`)
 - If not found → STOP with "Step not found" error
 - If step has `status: done` → STOP with "Step already done" error
+- If step has `status: prepared`:
+  - Set status to `in-progress` in plan (change `status: prepared` → `status: in-progress`)
+  - Compute packet path and verify packet exists
+  - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 11
+  - If packet missing → continue to create packet (status is now in-progress)
 - If step has `status: in-progress`:
   - Check if packet exists at expected location
   - If packet exists → Ask user: "Packet already exists. Overwrite?"
@@ -104,9 +201,16 @@ If no valid steps found → STOP with "No steps found" error
   - Check if packet exists
   - If packet exists → Report step info and packet path, then STOP with message: "Step {step-id} is in progress. Run `/ManageImpStep execute {packet-path}` to continue implementation."
   - If packet missing → this is the step to prepare (will create packet, status remains in-progress)
-- If none in-progress → find first step without status attribute (todo) → this is the step to prepare
+- If none in-progress:
+  - Find first non-done step in plan order
+  - If that step has `status: prepared`:
+    - Set status to `in-progress` in plan (change `status: prepared` → `status: in-progress`)
+    - Compute packet path and verify packet exists
+    - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 11
+    - If packet missing → continue to create packet (status is now in-progress)
+  - If that step has no status (todo) → this is the step to prepare
 - If all steps are done → STOP with message: "All steps are complete."
-  </step-selection>
+</step-selection>
 
 ### 4. Extract Step Content
 
@@ -218,6 +322,47 @@ Before reporting, verify you followed the rules:
 
 If any check fails → you made a mistake. Undo the implementation work and focus only on the packet.
 
+### 10A. Auto-Check Loop (when `--auto-check` is set, normal mode only)
+
+> If `AUTO_CHECK` is false, skip to Step 11.
+
+After packet creation, launch a Task agent (`subagent_type: general-purpose`) for the check loop:
+
+```
+You are checking and improving a step packet for completeness.
+
+## Source Documents
+
+Packet: {PACKET_PATH}
+Plan file: {PLAN_PATH}
+Design document: {DESIGN_DOC_PATH}
+
+## Instructions
+
+Run a check loop until the packet is clean or you reach 10 iterations:
+
+1. Read the packet, plan, and design document thoroughly
+2. Compare the packet against source documents — find ANY missing details
+   Use this checklist:
+   - All technical specifications from design doc relevant to this step
+   - Error handling requirements and exact error messages
+   - Validation rules, edge cases, type definitions
+   - Test scenarios, acceptance criteria completeness
+   - Cross-references resolved to actual content
+   - Implementation gotchas and warnings
+3. Stricter threshold: ANY finding, no matter how small, counts as a gap
+4. If findings exist:
+   - Edit the packet file to add missing information
+   - Do NOT duplicate existing content
+   - Do NOT remove existing content
+   - Increment iteration counter, go to step 1
+5. If zero findings OR iteration counter >= 10 → stop
+
+Report: "Check converged after N iterations" or "Check did not converge after 10 iterations — review manually"
+```
+
+Wait for the agent to complete and include the check result in the report.
+
 ### 11. Report Result
 
 Output:
@@ -227,6 +372,7 @@ Output:
 
 Title: {step heading}
 Packet: {packet-path}
+{If auto-check ran: "Check: converged after N iterations" or "Check: did not converge (10 iterations)"}
 
 Next: Run `/ManageImpStep execute {packet-path}` to implement.
 ```
@@ -237,7 +383,8 @@ After successful preparation, always include:
 
 1. Confirmation message with step ID
 2. Full path to the created packet
-3. Suggested next command
+3. Auto-check result (if `--auto-check` was used)
+4. Suggested next command
 
 **Remember:** You prepared a PACKET (documentation). You did NOT implement anything. Implementation is the user's next step via `/ManageImpStep execute`.
 
@@ -245,6 +392,12 @@ After successful preparation, always include:
 
 After successful preparation, auto-suggest the next command for the user:
 
+If `--auto-check` was used (packet already checked):
+```
+/ManageImpStep execute {PACKET_PATH} -n
+```
+
+If `--auto-check` was NOT used:
 ```
 /ManageImpStep check {PACKET_PATH} -n
 ```
