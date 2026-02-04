@@ -18,7 +18,7 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 
 | Workflow | Trigger | File |
 |----------|---------|------|
-| **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id]` | `Workflows/Prepare.md` |
+| **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id] [--ahead N] [--auto-check]` | `Workflows/Prepare.md` |
 | **Check** | `/ManageImpStep check <packet>` | `Workflows/Check.md` |
 | **Execute** | `/ManageImpStep execute <packet>` | `Workflows/Execute.md` |
 | **Validate** | `/ManageImpStep validate <packet>` | `Workflows/Validate.md` |
@@ -28,6 +28,8 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 ## Workflow Flow
 
 ```
+PREPARE --ahead --auto-check → (packets created + checked, status: prepared)
+                                       ↓ (later)
 PREPARE → CHECK (optional) → EXECUTE → VALIDATE ──→ DONE
    │                                      ↑    ↓
    └── creates packet                     └── FIX
@@ -38,6 +40,7 @@ PREPARE → CHECK (optional) → EXECUTE → VALIDATE ──→ DONE
 | State | HTML Comment |
 |-------|--------------|
 | Todo | `<!-- id: step-id -->` (no status) |
+| Prepared | `<!-- id: step-id status: prepared -->` (packet ready) |
 | In Progress | `<!-- id: step-id status: in-progress -->` |
 | Done | `<!-- id: step-id status: done -->` |
 
@@ -78,6 +81,40 @@ User: "/ManageImpStep validate <packet>" → FAIL, writes findings file
 User: "/ManageImpStep fix <packet>" → reads findings, applies targeted TDD fixes
 User: "/ManageImpStep validate <packet>" → PASS, deletes findings file
 User: "/ManageImpStep done <packet>" → marks done, commits
+```
+
+**Example 5: Prepare-ahead with auto-check**
+```
+User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --ahead 3 --auto-check"
+→ Invokes Prepare workflow in ahead mode
+→ Finds next 3 todo steps, launches parallel agents
+→ Each agent: creates packet + runs check loop until clean
+→ Sets status: prepared on successful steps
+→ Output: "Prepared 3 steps: step-a, step-b, step-c"
+```
+
+**Example 6: Prepare-ahead without auto-check**
+```
+User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --ahead 2"
+→ Finds next 2 todo steps, creates packets in parallel
+→ No check loop — packets may have gaps
+→ Sets status: prepared on successful steps
+```
+
+**Example 7: Single step with auto-check**
+```
+User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --auto-check"
+→ Normal single-step prepare
+→ After packet creation, launches background check loop
+→ Reports check convergence result
+```
+
+**Example 8: Resuming a prepared step**
+```
+User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md"
+→ First non-done step has status: prepared
+→ Sets it to in-progress, skips packet generation
+→ Output: "Using pre-generated packet for step-id. Packet: plans/.../step-id.md"
 ```
 
 ## References
