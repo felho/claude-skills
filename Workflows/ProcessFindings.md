@@ -41,6 +41,11 @@ Before proposing ANY fix, run this checklist mentally. **Do not default to addin
 4. **Default direction:** Remove or simplify prose, don't add more. If the finding says "X is missing from section Y," first ask: should X be in prose at all, or should Y just reference the code where X is properly defined?
 
 5. **Anti-pattern check:** Would the proposed fix create a new entry in the MediumGuide anti-patterns table? (e.g., TypeScript interface in markdown, state transitions in prose, same enum in 3 places)
+
+6. **Verify, don't assume:** When step 2 concludes "the code already has it" — verify the SPECIFIC values/rules, not just that a relevant function exists. A function existing doesn't mean all related business rules are in code.
+   - Are there magic numbers in prose that should be constants in code?
+   - Are there conditions/rules described in prose without a corresponding function?
+   - If yes → the finding TRANSFORMS: not "add prose docs" but "extract business rule to code"
 </medium-check>
 
 **Reference:** See [MediumGuide](../references/MediumGuide.md) for the decision matrix.
