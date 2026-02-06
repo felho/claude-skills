@@ -39,10 +39,14 @@ AGENT_MODEL: sonnet (for review agents — fast, thorough, cost-effective)
    - **Structured:** References external files (look for paths like `packages/`, `src/`, backtick-quoted `.ts`/`.md` file paths)
 5. **If structured**: Find referenced file paths using Grep/Glob. Count lines in each.
 6. **Build FILE_LIST**: `[PRD_PATH, ...referenced_code_files]`
-7. **Calculate TOTAL_LINES** across all files.
-8. **Select review mode**:
+7. **Build CODE_FILE_MAP** (structured PRDs only): For each referenced code file, record:
+   - File path
+   - Line count
+   - Brief content hint (infer from filename: `types.ts` → "type/enum definitions", `state-machine.ts` → "state transitions", `errors.ts` → "error codes", etc.)
+8. **Calculate TOTAL_LINES** across all files. Also calculate **CODE_LINES** (sum of code file lines only) and **PRD_LINES** (PRD file lines only).
+9. **Select review mode**:
    - **Standard** (TOTAL_LINES < 1000): Agents read full files directly
-   - **Targeted** (TOTAL_LINES ≥ 1000): Agents receive section map and read selectively
+   - **Targeted** (TOTAL_LINES ≥ 1000): Agents receive section map + code file map and read selectively
 
 Report to user:
 ```
@@ -65,10 +69,12 @@ Launch all agents in a **single message** (parallel Task tool calls). Each agent
 
 #### Targeted Reading Prefix
 
-When TOTAL_LINES ≥ 1000, prepend this block to every agent prompt (fill in variables from Step 1):
+When TOTAL_LINES ≥ 1000, prepend this block to every agent prompt (fill in variables from Step 1).
+
+**For monolithic PRDs** (no companion code files):
 
 ```
-CONTEXT: This is a large document ({TOTAL_LINES} lines across {FILE_COUNT} file(s)).
+CONTEXT: This is a large document ({TOTAL_LINES} lines).
 Use targeted reading to stay within context limits.
 
 Section map of {PRD_PATH}:
@@ -81,9 +87,55 @@ READING STRATEGY:
 2. Read those sections using the Read tool with offset and limit parameters.
    Example: Read(file_path: "...", offset: 89, limit: 90) for lines 89-178.
 3. If a finding references another section, read that section too.
-4. Stay under 1500 lines total read across all files.
+4. Stay under {READING_BUDGET} lines total read.
 5. Return at most 10 findings, highest severity first.
 ```
+
+**For structured PRDs** (with companion code files):
+
+```
+CONTEXT: This is a large structured document ({TOTAL_LINES} lines across {FILE_COUNT} file(s)).
+The prose design doc references companion code files that contain the AUTHORITATIVE formal definitions (types, state machine, error codes, etc.).
+Use targeted reading to stay within context limits.
+
+PRD section map of {PRD_PATH}:
+{SECTION_MAP_FROM_STEP_1}
+
+Companion code files (SOURCE OF TRUTH for formal definitions):
+{CODE_FILE_MAP}
+
+YOUR PRIORITY KEYWORDS: {AGENT_KEYWORDS}
+
+READING STRATEGY — CODE FILES FIRST:
+1. Read ALL companion code files listed above IN FULL. They are small (typically 100-400 lines each) and contain the authoritative definitions. This is your FIRST and MOST IMPORTANT step.
+2. Then identify PRD sections from the map above that match your priority keywords.
+3. Read those PRD sections using the Read tool with offset and limit parameters.
+   Example: Read(file_path: "...", offset: 89, limit: 90) for lines 89-178.
+4. If a finding references another section, read that section too.
+5. Stay under {READING_BUDGET} lines total read from the PRD file. Code files do NOT count toward this budget.
+6. Return at most 10 findings, highest severity first.
+
+CRITICAL — VERIFY BEFORE REPORTING:
+Before reporting ANY finding about missing, incomplete, or inconsistent types/transitions/errors/definitions:
+- CHECK the companion code files you read in step 1. The code files are the SOURCE OF TRUTH.
+- If a code file contains the correct, complete definition and the PRD prose references it, this is NOT a finding.
+- Only report an issue if: (a) it is genuinely missing from BOTH prose AND code files, or (b) the prose CONTRADICTS the code file, or (c) the issue is about the prose-code relationship itself (e.g., prose references a type that doesn't exist in the code).
+```
+
+**`{CODE_FILE_MAP}` format** (built from Step 1):
+```
+- {file_path} ({line_count} lines) — {content_hint}
+```
+Example:
+```
+- packages/domain/types.ts (269 lines) — type/enum definitions
+- packages/domain/state-machine.ts (327 lines) — state transitions, guards, side effects
+- packages/protocol/errors.ts (102 lines) — error codes, HTTP status mapping
+```
+
+**`{READING_BUDGET}` calculation**:
+- **Monolithic**: `min(2000, TOTAL_LINES * 0.5)`
+- **Structured**: `min(2000, PRD_LINES * 0.5)` — budget applies ONLY to PRD lines, code files are read in full and don't count toward budget.
 
 **Agent priority keywords** (for `{AGENT_KEYWORDS}` in targeted prefix):
 
