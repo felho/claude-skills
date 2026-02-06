@@ -18,7 +18,7 @@ AGENT_MODEL: sonnet (for review agents — fast, thorough, cost-effective)
 
 - If `PRD_PATH` is empty → STOP with "Usage: provide a path to the PRD or design doc."
 - This workflow is **read-only** — it does NOT modify any files. It produces a findings report.
-- Launch **all 6 agents in parallel** using the Task tool with `subagent_type: "general-purpose"`.
+- Launch **all 7 agents in parallel** using the Task tool with `subagent_type: "general-purpose"`.
 - If `SCOPE` is "quick", launch only agents 1-3 (the most impactful checks).
 - Each agent gets the PRD path and any referenced code file paths. The agent reads the files itself.
 - Focus on **actionable findings** — things that would cause bugs or confusion during implementation.
@@ -41,7 +41,7 @@ Starting review of: <PRD_PATH>
 Type: <Monolithic | Structured>
 <If structured:> Referenced files: <count> files found
 Scope: <full | quick>
-Launching <6 | 3> parallel review agents...
+Launching <7 | 3> parallel review agents...
 ```
 
 ### 2. Launch Parallel Review Agents
@@ -208,11 +208,39 @@ For each finding, provide:
 Return findings as a numbered list. If architecturally consistent, say "No architectural consistency issues found."
 ```
 
+#### Agent 7: Build vs Reuse Agent
+```
+You are a Technology Strategy expert reviewing a PRD for "reinventing the wheel" — areas where the PRD describes custom implementations for problems that existing, mature frameworks or libraries already solve.
+
+Read ALL of these files thoroughly:
+<FILE_LIST>
+
+Then analyze:
+- Are there custom protocol designs (message ordering, reconnection, gap recovery, correlation IDs) where existing tools like Socket.IO, tRPC, or GraphQL subscriptions would suffice?
+- Are there custom retry/timeout/abort patterns repeated across multiple agents or components where a shared abstraction or library (e.g., p-retry, AbortController patterns) would eliminate boilerplate?
+- Are there hand-rolled state machines in prose where XState, Robot, or a formal transition table would provide type safety and visualization?
+- Are there custom validation schemas described in markdown where zod, yup, or similar runtime validation libraries would enforce them?
+- Are there custom auth/session mechanisms where established patterns (JWT, session middleware, Passport) would be more robust?
+- Are there custom caching, queuing, or scheduling implementations where existing solutions (BullMQ, node-cron, lru-cache) exist?
+- Are there custom realtime/streaming implementations where SSE, WebSocket libraries, or framework-level solutions handle the transport?
+- For each finding: is this area actually CORE to the product (unique differentiator), or is it COMMODITY infrastructure that shouldn't consume spec/implementation effort?
+
+For each finding, provide:
+1. **Title** — what's being reinvented
+2. **Severity** — Important (significant spec/implementation savings) or Minor (small savings)
+3. **Where** — exact sections in the PRD that describe the custom implementation
+4. **Lines of spec affected** — approximate line count that would shrink or disappear
+5. **Existing alternatives** — 2-3 specific frameworks/libraries that solve this, with brief trade-offs
+6. **Recommendation** — which alternative to consider and why
+
+Return findings as a numbered list. If the PRD appropriately uses existing tools for non-core concerns, say "No reinventing-the-wheel issues found — technology choices are appropriate."
+```
+
 ### 3. Collect and Merge Results
 
 After all agents complete:
 
-1. **Collect** all findings from all 6 agents.
+1. **Collect** all findings from all 7 agents.
 2. **Deduplicate** — if two agents found the same issue (same location, same problem), merge into one finding, noting which agents found it.
 3. **Number** findings sequentially (#1, #2, #3...).
 4. **Group** by severity: Critical → Important → Minor.
@@ -227,7 +255,7 @@ Write the merged report to the user (and optionally to a file if the PRD is larg
 PRD Review: <PRD name>
 Type: <Monolithic | Structured>
 Scope: <full | quick>
-Agents: <6 | 3> launched, <N> returned findings
+Agents: <7 | 3> launched, <N> returned findings
 
 ---
 
@@ -280,6 +308,7 @@ The most critical issues are: <1-2 sentence summary of critical findings, if any
 | Cross-Reference | <N> | Completed |
 | Completeness | <N> | Completed |
 | Architectural | <N> | Completed |
+| Build vs Reuse | <N> | Completed |
 ```
 
 After the report, suggest: "To fix these findings, edit the PRD directly. After fixing, run the Review workflow again to verify."
