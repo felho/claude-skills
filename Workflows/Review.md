@@ -1,12 +1,12 @@
 ---
-description: Review a PRD or structured spec for inconsistencies using parallel expert agents
+description: Review a PRD or structured spec for inconsistencies using parallel expert agents. Adapts to document size.
 argument-hint: <prd-path> [<scope>]
 allowed-tools: Read, Write, Glob, Grep, AskUserQuestion, Task
 ---
 
 # Review — Parallel Consistency Check for PRD or Structured Spec
 
-Launch 6 parallel expert agents to review a PRD (monolithic or structured) for inconsistencies, gaps, and technical issues. Each agent focuses on a specific consistency dimension with fresh context. Findings are merged, deduplicated, and reported by severity.
+Launch parallel expert agents to review a PRD (monolithic or structured) for inconsistencies, gaps, and technical issues. Each agent focuses on a specific consistency dimension with fresh context. Adapts reading strategy based on document size to stay within context limits. Findings are merged, deduplicated, and reported by severity.
 
 ## Variables
 
@@ -22,23 +22,33 @@ AGENT_MODEL: sonnet (for review agents — fast, thorough, cost-effective)
 - If `SCOPE` is "quick", launch only agents 1-3 (the most impactful checks).
 - Each agent gets the PRD path and any referenced code file paths. The agent reads the files itself.
 - Focus on **actionable findings** — things that would cause bugs or confusion during implementation.
+- **Context Budget Rule:** The orchestrating agent (you) must **NEVER** read the full PRD with the Read tool. Only scan structure using Grep. Each review agent reads file content in its own independent context window. Reading a large PRD here leaves no room for collecting 7 agents' results.
 
 ## Workflow
 
-### 1. Read and Detect Structure
+### 1. Scan Structure (Do NOT Read Full File)
 
-- Read the PRD at `PRD_PATH`.
-  - If not found → STOP with "PRD not found: {PRD_PATH}"
-- Detect the PRD type:
-  - **Monolithic:** Single large markdown file (>500 lines, contains code blocks, schemas, etc.)
-  - **Structured:** Design doc that references external code files (contains "See `packages/...`" or similar references)
-- If structured, find all referenced code file paths using Glob/Grep.
-- Build a file list: `[PRD_PATH, ...referenced_code_files]`
+> **Do NOT use Read on the full PRD.** Reading a large file here consumes the context needed for collecting agent results. Agents read files in their own context windows.
+
+1. **Verify file exists**: `Read` with `limit: 30` — read ONLY the first 30 lines for title and overview context.
+   - If not found → STOP with "PRD not found: {PRD_PATH}"
+2. **Count total lines**: `Grep` with pattern `"."` and `output_mode: "count"` on the PRD file.
+3. **Build section map**: `Grep` with pattern `^#{1,3} ` and `output_mode: "content"` with `-n: true` to get all headings with line numbers.
+4. **Detect structure type**:
+   - **Monolithic:** Single markdown file, no external code references
+   - **Structured:** References external files (look for paths like `packages/`, `src/`, backtick-quoted `.ts`/`.md` file paths)
+5. **If structured**: Find referenced file paths using Grep/Glob. Count lines in each.
+6. **Build FILE_LIST**: `[PRD_PATH, ...referenced_code_files]`
+7. **Calculate TOTAL_LINES** across all files.
+8. **Select review mode**:
+   - **Standard** (TOTAL_LINES < 1000): Agents read full files directly
+   - **Targeted** (TOTAL_LINES ≥ 1000): Agents receive section map and read selectively
 
 Report to user:
 ```
 Starting review of: <PRD_PATH>
 Type: <Monolithic | Structured>
+Lines: <TOTAL_LINES> → <standard | targeted> mode
 <If structured:> Referenced files: <count> files found
 Scope: <full | quick>
 Launching <7 | 3> parallel review agents...
@@ -46,13 +56,54 @@ Launching <7 | 3> parallel review agents...
 
 ### 2. Launch Parallel Review Agents
 
-Launch all agents in a **single message** (parallel Task tool calls). Each agent receives the same file list but focuses on its specific dimension.
+Launch all agents in a **single message** (parallel Task tool calls). Each agent focuses on its specific dimension.
+
+**Mode-specific prompt construction:**
+
+- **Standard mode** (< 1000 lines): Use agent prompts as written below — agents read full files.
+- **Targeted mode** (≥ 1000 lines): **Prepend** the Targeted Reading Prefix to each agent prompt before the agent's own instructions.
+
+#### Targeted Reading Prefix
+
+When TOTAL_LINES ≥ 1000, prepend this block to every agent prompt (fill in variables from Step 1):
+
+```
+CONTEXT: This is a large document ({TOTAL_LINES} lines across {FILE_COUNT} file(s)).
+Use targeted reading to stay within context limits.
+
+Section map of {PRD_PATH}:
+{SECTION_MAP_FROM_STEP_1}
+
+YOUR PRIORITY KEYWORDS: {AGENT_KEYWORDS}
+
+READING STRATEGY:
+1. Identify sections from the map above that match your priority keywords.
+2. Read those sections using the Read tool with offset and limit parameters.
+   Example: Read(file_path: "...", offset: 89, limit: 90) for lines 89-178.
+3. If a finding references another section, read that section too.
+4. Stay under 1500 lines total read across all files.
+5. Return at most 10 findings, highest severity first.
+```
+
+**Agent priority keywords** (for `{AGENT_KEYWORDS}` in targeted prefix):
+
+| Agent | Keywords |
+|-------|----------|
+| Type Consistency | type, interface, schema, model, data, enum, definition, payload, field |
+| State Machine | state, machine, lifecycle, transition, status, flow, recovery, watchdog, guard |
+| API Contract | api, endpoint, route, rest, websocket, event, command, payload, error, response |
+| Cross-Reference | *(all sections — check "see section" refs, dangling links, field name consistency)* |
+| Completeness | *(all sections — scan for TODO, TBD, undefined, unspecified, gap, placeholder)* |
+| Architectural | architect, design, decision, boundary, security, scope, v1, v2, trade-off, principle |
+| Build vs Reuse | technolog, framework, library, tool, stack, custom, protocol, implement |
+
+---
 
 #### Agent 1: Type Consistency Agent
 ```
 You are a Type Consistency expert reviewing a PRD for type-level inconsistencies.
 
-Read ALL of these files thoroughly:
+Files to analyze:
 <FILE_LIST>
 
 Then analyze:
@@ -78,7 +129,7 @@ Return findings as a numbered list. If no findings, say "No type consistency iss
 ```
 You are a State Machine expert reviewing a PRD for state machine completeness.
 
-Read ALL of these files thoroughly:
+Files to analyze:
 <FILE_LIST>
 
 Then analyze:
@@ -104,7 +155,7 @@ Return findings as a numbered list. If no state machine is defined, say "No stat
 ```
 You are an API Contract expert reviewing a PRD for API-level inconsistencies.
 
-Read ALL of these files thoroughly:
+Files to analyze:
 <FILE_LIST>
 
 Then analyze:
@@ -133,7 +184,7 @@ Return findings as a numbered list. If no API contract is defined, say "No API c
 ```
 You are a Cross-Reference expert reviewing a PRD for broken or inconsistent references.
 
-Read ALL of these files thoroughly:
+Files to analyze:
 <FILE_LIST>
 
 Then analyze:
@@ -158,7 +209,7 @@ Return findings as a numbered list. If all references are valid, say "All cross-
 ```
 You are a Completeness expert reviewing a PRD for missing definitions, unspecified behavior, and gaps.
 
-Read ALL of these files thoroughly:
+Files to analyze:
 <FILE_LIST>
 
 Then analyze:
@@ -185,7 +236,7 @@ Return findings as a numbered list. If the PRD is complete, say "No completeness
 ```
 You are an Architectural Consistency expert reviewing a PRD for high-level design issues.
 
-Read ALL of these files thoroughly:
+Files to analyze:
 <FILE_LIST>
 
 Then analyze:
@@ -212,7 +263,7 @@ Return findings as a numbered list. If architecturally consistent, say "No archi
 ```
 You are a Technology Strategy expert reviewing a PRD for "reinventing the wheel" — areas where the PRD describes custom implementations for problems that existing, mature frameworks or libraries already solve.
 
-Read ALL of these files thoroughly:
+Files to analyze:
 <FILE_LIST>
 
 Then analyze:
@@ -254,6 +305,7 @@ Write the merged report to the user (and optionally to a file if the PRD is larg
 ```
 PRD Review: <PRD name>
 Type: <Monolithic | Structured>
+Lines: <TOTAL_LINES> (<standard | targeted> mode)
 Scope: <full | quick>
 Agents: <7 | 3> launched, <N> returned findings
 
