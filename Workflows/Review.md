@@ -17,12 +17,17 @@ AGENT_MODEL: sonnet (for review agents — fast, thorough, cost-effective)
 ## Instructions
 
 - If `PRD_PATH` is empty → STOP with "Usage: provide a path to the PRD or design doc."
-- This workflow is **read-only** — it does NOT modify any files. It produces a findings report.
+- This workflow is **read-only** — it does NOT modify the PRD or source files. It produces a findings report (optionally written to a file).
 - Launch **all 7 agents in parallel** using the Task tool with `subagent_type: "general-purpose"`.
 - If `SCOPE` is "quick", launch only agents 1-3 (the most impactful checks).
 - Each agent gets the PRD path and any referenced code file paths. The agent reads the files itself.
 - Focus on **actionable findings** — things that would cause bugs or confusion during implementation.
 - **Context Budget Rule:** The orchestrating agent (you) must **NEVER** read the full PRD with the Read tool. Only scan structure using Grep. Each review agent reads file content in its own independent context window. Reading a large PRD here leaves no room for collecting 7 agents' results.
+
+## Error Messages (Use Exactly)
+
+- Missing PRD path: `"Usage: provide a path to the PRD or design doc."`
+- File not found: `"PRD not found: {PRD_PATH}"`
 
 ## Workflow
 
@@ -37,7 +42,7 @@ AGENT_MODEL: sonnet (for review agents — fast, thorough, cost-effective)
 4. **Detect structure type**:
    - **Monolithic:** Single markdown file, no external code references
    - **Structured:** References external files (look for paths like `packages/`, `src/`, backtick-quoted `.ts`/`.md` file paths)
-5. **If structured**: Find referenced file paths using Grep/Glob. Count lines in each.
+5. **If structured**: Find referenced file paths using Grep/Glob. Resolve relative paths (e.g., `packages/domain/types.ts`) against the PRD file's **parent directory**, not the working directory. Count lines in all code files using **parallel Grep calls** (one `Grep` with `output_mode: "count"` per file, all in one message) — do NOT count files one at a time with separate Bash commands.
 6. **Build FILE_LIST**: `[PRD_PATH, ...referenced_code_files]`
 7. **Build CODE_FILE_MAP** (structured PRDs only): For each referenced code file, record:
    - File path
@@ -76,9 +81,11 @@ If `SCOPE` is "quick" → use only agents 1-3.
 
 #### Prompt composition
 
+First, **read ALL agent files in parallel** (all Read calls in one message). Then compose prompts from the results:
+
 For each agent file:
 <prompt-composition-loop>
-1. **Read** the agent file. Extract `keywords` from YAML frontmatter.
+1. Extract `keywords` from YAML frontmatter (already read above).
 2. **Replace** `{FILE_LIST}` in the agent content with the actual file list from Step 1.
 3. **If targeted mode** (TOTAL_LINES ≥ 1000) → **prepend** the appropriate Targeted Reading Prefix (see below) before the agent content. Fill in `{AGENT_KEYWORDS}` from the agent's frontmatter `keywords` field (use `"*"` as "all sections").
 </prompt-composition-loop>
@@ -228,13 +235,13 @@ The most critical issues are: <1-2 sentence summary of critical findings, if any
 
 | Agent | Findings | Status |
 |-------|----------|--------|
-| Type Consistency | <N> | Completed |
-| State Machine | <N> | Completed |
-| API Contract | <N> | Completed |
-| Cross-Reference | <N> | Completed |
-| Completeness | <N> | Completed |
-| Architectural | <N> | Completed |
-| Build vs Reuse | <N> | Completed |
+| Type Consistency Checker | <N> | Completed |
+| State Machine Checker | <N> | Completed |
+| API Contract Checker | <N> | Completed |
+| Cross-Reference Checker | <N> | Completed |
+| Completeness Checker | <N> | Completed |
+| Architectural Checker | <N> | Completed |
+| Build vs Reuse Advisor | <N> | Completed |
 ```
 
 After the report, suggest: "To fix these findings, edit the PRD directly. After fixing, run the Review workflow again to verify."
