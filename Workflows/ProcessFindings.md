@@ -106,6 +106,10 @@ If there is a completed fix from the previous finding, commit it as a background
 - Do NOT wait for the commit to complete before presenting the next finding
 
 **Step B — Present finding N:**
+
+> **⚠️ CRITICAL — PRESENT, DON'T DECIDE:**
+> Your job is to present the finding with context and a recommendation, then STOP and wait for the user's decision. Do NOT verify the finding yourself and declare a "verdict" (e.g., "FALSE POSITIVE", "not a real issue"). Do NOT skip findings based on your own assessment. Even if you believe a finding is wrong, present it with your analysis and let the user decide (apply/skip). The common failure mode is: you read the code, realize the agent was wrong, and write "Verdict: false positive — moving on." This bypasses the user's decision authority.
+
 1. Read the relevant PRD sections and/or code files referenced by the finding.
 2. Run the medium-check (see Instructions) to determine the right fix approach.
 3. Present to the user:

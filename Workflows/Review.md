@@ -60,7 +60,10 @@ Launching <7 | 3> parallel review agents...
 
 ### 2. Launch Parallel Review Agents
 
-Launch all agents in a **single message** (parallel Task tool calls). Each agent focuses on its specific dimension.
+> **⚠️ CRITICAL — ALL AGENTS IN ONE MESSAGE:**
+> You MUST launch all 7 (or 3) agents in a **single assistant message** containing multiple parallel Task tool calls. Do NOT launch one agent, wait for results, then launch the next. The common failure mode is: you construct agent 1's prompt, call Task, see the result, then construct agent 2's prompt. This is WRONG — it serializes the agents. Instead: construct ALL prompts first, then emit ALL Task tool calls in one message.
+
+Each agent focuses on its specific dimension.
 
 **Mode-specific prompt construction:**
 
