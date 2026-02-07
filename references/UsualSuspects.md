@@ -134,6 +134,29 @@ interface AgentTask<TInput, TOutput> {
 
 **Target medium:** Stays in prose / design tool. UI specs rarely benefit from code formalization (except for shared types which are already in the protocol package).
 
+## 13. Persistence Schema
+
+**What to look for:** Table definitions in prose (markdown tables with columns/types/descriptions), SQL snippets, "the X table stores..." descriptions, index mentions, foreign key relationships, constraint descriptions.
+
+**Typical signal in PRD:** A §Data Model section with markdown tables defining columns, scattered `CREATE INDEX` examples, transaction isolation descriptions, pragma settings. The domain types (`types.ts`) capture the in-memory representation but NOT the storage contract (column types, NOT NULL, defaults, FK, indexes).
+
+**Why this is separate from Domain Model (§1):** Domain types and persistence schema are **different representations of the same entities**. TypeScript interfaces define what the code sees in memory. DDL defines what the database enforces at rest. They overlap but are NOT derivable from each other:
+
+| Concern | TypeScript types | DB schema |
+|---------|-----------------|-----------|
+| Nullability | `string \| null` | `TEXT` (nullable) vs `TEXT NOT NULL` |
+| Defaults | not expressible | `DEFAULT 0`, `DEFAULT 'idle'` |
+| Foreign keys | not expressible | `REFERENCES runs(id)` |
+| Indexes | not expressible | `CREATE INDEX ...` |
+| Check constraints | not expressible | `CHECK(status IN (...))` |
+| Pragmas | not expressible | `PRAGMA journal_mode=WAL` |
+
+**Target medium:** Code — SQL DDL or ORM schema definition (`db/schema.ts`, `db/schema.sql`, or Drizzle/Prisma schema). The DDL is the executable contract that an implementer runs to create the database.
+
+**Key question:** For every table described in prose, is there an executable DDL? And are the DDL columns in sync with the TypeScript types and prose descriptions?
+
+**Representation drift risk:** When the same entity has 3+ representations (TS types, DDL, prose tables, API DTOs, event payloads), changes in one may not propagate to others. The Review workflow's Type Consistency agent checks this cross-medium sync. The Build vs Reuse agent may recommend a single-source ORM (Drizzle, Prisma) to eliminate drift by construction.
+
 ---
 
 ## The Structure Workflow Process

@@ -141,11 +141,11 @@ Example:
 
 | Agent | Keywords |
 |-------|----------|
-| Type Consistency | type, interface, schema, model, data, enum, definition, payload, field |
+| Type Consistency | type, interface, schema, model, data, enum, definition, payload, field, CREATE TABLE, column, NOT NULL, DEFAULT, REFERENCES |
 | State Machine | state, machine, lifecycle, transition, status, flow, recovery, watchdog, guard |
 | API Contract | api, endpoint, route, rest, websocket, event, command, payload, error, response |
 | Cross-Reference | *(all sections — check "see section" refs, dangling links, field name consistency)* |
-| Completeness | *(all sections — scan for TODO, TBD, undefined, unspecified, gap, placeholder)* |
+| Completeness | *(all sections — scan for TODO, TBD, undefined, unspecified, gap, placeholder, table, CREATE TABLE, schema, DDL, index, migration, constraint)* |
 | Architectural | architect, design, decision, boundary, security, scope, v1, v2, trade-off, principle |
 | Build vs Reuse | technolog, framework, library, tool, stack, custom, protocol, implement |
 
@@ -159,6 +159,8 @@ Files to analyze:
 <FILE_LIST>
 
 Then analyze:
+
+SAME-MEDIUM CONSISTENCY (TypeScript ↔ TypeScript):
 - Are the same types/interfaces defined identically everywhere they appear?
 - Same field with different types in different sections or files?
 - Missing fields in one definition that exist in another?
@@ -166,6 +168,19 @@ Then analyze:
 - TypeScript interfaces in markdown that contradict each other?
 - Payload schemas that don't match their TypeScript interface definitions?
 - Union types that include or exclude different members in different places?
+
+CROSS-MEDIUM CONSISTENCY (TypeScript ↔ DB schema ↔ prose):
+If the codebase includes a DB schema file (e.g., schema.ts, schema.sql, Drizzle/Prisma schema):
+- Does every column in the DDL have a corresponding field in the TypeScript type?
+- Does every field in the TypeScript type have a corresponding column in the DDL?
+- Are nullability constraints consistent? (TS `string | null` ↔ DDL nullable column; TS `string` ↔ DDL `NOT NULL`)
+- Do DDL DEFAULT values match the business logic defaults in code (e.g., DEFAULT 0 for counters)?
+- Do DDL enum CHECK constraints (if any) match the TypeScript enum values?
+- Are FK relationships in DDL consistent with the relationships described in TypeScript types and prose?
+
+If the codebase includes prose table definitions (markdown tables in the PRD):
+- Do prose column names match the DDL column names AND the TypeScript field names?
+- Do prose type descriptions match the actual DDL types and TS types?
 
 For each finding, provide:
 1. **Title** — short description
@@ -265,6 +280,8 @@ Files to analyze:
 <FILE_LIST>
 
 Then analyze:
+
+GENERAL COMPLETENESS:
 - Are there entities, types, or concepts mentioned but never formally defined?
 - Are there state transitions without documented side effects?
 - Are there error scenarios without specified handling behavior?
@@ -273,6 +290,23 @@ Then analyze:
 - Are there "TODO", "TBD", "FIXME", or placeholder markers that need resolution?
 - Are there scenarios where behavior is ambiguous (two valid interpretations)?
 - Are there edge cases that are mentioned but not fully specified?
+
+PERSISTENCE CHECKLIST (activate if the PRD has a data model or database section):
+- For every table described in prose: does a corresponding executable DDL exist (CREATE TABLE in a code file like schema.ts, schema.sql, or ORM schema)?
+- Are SQLite/Postgres/etc column types specified (not just "string" or "integer" in prose)?
+- Are NOT NULL constraints defined for fields that should never be null?
+- Are DEFAULT values specified for fields that need them (counters, booleans, status enums)?
+- Are foreign key relationships declared in DDL (not just described in prose)?
+- Are indexes defined for performance-critical query paths (e.g., claim-next, watchdog queries)?
+- Is there a migration/versioning strategy if the schema will evolve?
+- Are database pragmas/settings specified (WAL mode, busy timeout, foreign key enforcement)?
+- Are transaction boundaries documented for multi-table operations?
+
+REPRESENTATION COVERAGE (activate if the same entity appears in multiple mediums):
+When an entity (e.g., "work_items") is described in multiple representations (prose table, TypeScript type, DB DDL, API DTO, event payload):
+- Is there a representation for each layer that needs one? (Missing a DB schema when prose tables exist = Critical gap)
+- Is the "source of truth" explicitly designated for each concern? (Types = TS, Storage = DDL, Transport = DTO)
+- Are there representations that should exist but don't? (e.g., prose describes 5 tables but DDL only covers 3)
 
 For each finding, provide:
 1. **Title** — short description
@@ -319,6 +353,8 @@ Files to analyze:
 <FILE_LIST>
 
 Then analyze:
+
+CUSTOM IMPLEMENTATIONS:
 - Are there custom protocol designs (message ordering, reconnection, gap recovery, correlation IDs) where existing tools like Socket.IO, tRPC, or GraphQL subscriptions would suffice?
 - Are there custom retry/timeout/abort patterns repeated across multiple agents or components where a shared abstraction or library (e.g., p-retry, AbortController patterns) would eliminate boilerplate?
 - Are there hand-rolled state machines in prose where XState, Robot, or a formal transition table would provide type safety and visualization?
@@ -328,8 +364,18 @@ Then analyze:
 - Are there custom realtime/streaming implementations where SSE, WebSocket libraries, or framework-level solutions handle the transport?
 - For each finding: is this area actually CORE to the product (unique differentiator), or is it COMMODITY infrastructure that shouldn't consume spec/implementation effort?
 
+REPRESENTATION DRIFT RISK:
+- Count how many separate representations exist for the same core entities (e.g., TypeScript types + DB DDL + prose tables + API DTOs + event payloads). If 3 or more representations exist for the same entity:
+  - Flag this as a maintenance risk — changes must propagate to all representations manually.
+  - Recommend single-source tools that could eliminate drift by construction:
+    - **Drizzle ORM**: Define schema once in TypeScript → derives SQL DDL + TypeScript types
+    - **Prisma**: Schema file → generates client types + migration SQL
+    - **tRPC**: Define procedures once → derives client types + server handlers
+    - **Zod + drizzle-zod**: Zod schemas → derives DB schema + runtime validation
+  - For each recommendation, note the trade-off: single-source eliminates drift but adds a framework dependency and may constrain schema expressiveness.
+
 For each finding, provide:
-1. **Title** — what's being reinvented
+1. **Title** — what's being reinvented (or what drift risk exists)
 2. **Severity** — Important (significant spec/implementation savings) or Minor (small savings)
 3. **Where** — exact sections in the PRD that describe the custom implementation
 4. **Lines of spec affected** — approximate line count that would shrink or disappear
