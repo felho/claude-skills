@@ -60,19 +60,41 @@ Launching <7 | 3> parallel review agents...
 
 ### 2. Launch Parallel Review Agents
 
-> **⚠️ CRITICAL — ALL AGENTS IN ONE MESSAGE:**
-> You MUST launch all 7 (or 3) agents in a **single assistant message** containing multiple parallel Task tool calls. Do NOT launch one agent, wait for results, then launch the next. The common failure mode is: you construct agent 1's prompt, call Task, see the result, then construct agent 2's prompt. This is WRONG — it serializes the agents. Instead: construct ALL prompts first, then emit ALL Task tool calls in one message.
+#### Agent roster
 
-Each agent focuses on its specific dimension.
+| # | Agent file | Quick scope |
+|---|------------|-------------|
+| 1 | `agents/TypeConsistencyChecker.md` | yes |
+| 2 | `agents/StateMachineChecker.md` | yes |
+| 3 | `agents/ApiContractChecker.md` | yes |
+| 4 | `agents/CrossReferenceChecker.md` | no |
+| 5 | `agents/CompletenessChecker.md` | no |
+| 6 | `agents/ArchitecturalChecker.md` | no |
+| 7 | `agents/BuildVsReuseAdvisor.md` | no |
 
-**Mode-specific prompt construction:**
+If `SCOPE` is "quick" → use only agents 1-3.
 
-- **Standard mode** (< 1000 lines): Use agent prompts as written below — agents read full files.
-- **Targeted mode** (≥ 1000 lines): **Prepend** the Targeted Reading Prefix to each agent prompt before the agent's own instructions.
+#### Prompt composition
 
-#### Targeted Reading Prefix
+For each agent file:
+<prompt-composition-loop>
+1. **Read** the agent file. Extract `keywords` from YAML frontmatter.
+2. **Replace** `{FILE_LIST}` in the agent content with the actual file list from Step 1.
+3. **If targeted mode** (TOTAL_LINES ≥ 1000) → **prepend** the appropriate Targeted Reading Prefix (see below) before the agent content. Fill in `{AGENT_KEYWORDS}` from the agent's frontmatter `keywords` field (use `"*"` as "all sections").
+</prompt-composition-loop>
 
-When TOTAL_LINES ≥ 1000, prepend this block to every agent prompt (fill in variables from Step 1).
+Store each composed prompt. Do NOT launch yet.
+
+#### Targeted Reading Prefix templates
+
+**`{READING_BUDGET}` calculation**:
+- **Monolithic**: `min(2000, TOTAL_LINES * 0.5)`
+- **Structured**: `min(2000, PRD_LINES * 0.5)` — budget applies ONLY to PRD lines, code files are read in full and don't count toward budget.
+
+**`{CODE_FILE_MAP}` format** (built from Step 1):
+```
+- {file_path} ({line_count} lines) — {content_hint}
+```
 
 **For monolithic PRDs** (no companion code files):
 
@@ -125,277 +147,28 @@ Before reporting ANY finding about missing, incomplete, or inconsistent types/tr
 - Only report an issue if: (a) it is genuinely missing from BOTH prose AND code files, or (b) the prose CONTRADICTS the code file, or (c) the issue is about the prose-code relationship itself (e.g., prose references a type that doesn't exist in the code).
 ```
 
-**`{CODE_FILE_MAP}` format** (built from Step 1):
-```
-- {file_path} ({line_count} lines) — {content_hint}
-```
-Example:
-```
-- packages/domain/types.ts (269 lines) — type/enum definitions
-- packages/domain/state-machine.ts (327 lines) — state transitions, guards, side effects
-- packages/protocol/errors.ts (102 lines) — error codes, HTTP status mapping
-```
+#### Parallel launch (background tasks)
 
-**`{READING_BUDGET}` calculation**:
-- **Monolithic**: `min(2000, TOTAL_LINES * 0.5)`
-- **Structured**: `min(2000, PRD_LINES * 0.5)` — budget applies ONLY to PRD lines, code files are read in full and don't count toward budget.
+> **⚠️ CRITICAL — USE BACKGROUND TASKS FOR PARALLELISM:**
+> Launch ALL agents with `run_in_background: true`. Each Task call returns immediately with an `output_file` path — the agent runs concurrently in the background. This ensures all 7 agents execute in parallel regardless of whether the Task calls are emitted in one message or sequentially.
 
-**Agent priority keywords** (for `{AGENT_KEYWORDS}` in targeted prefix):
+Launch all agents (7 or 3) as background Task calls:
+- `subagent_type: "general-purpose"`
+- `model: {AGENT_MODEL}`
+- `run_in_background: true`
+- `description:` agent title from the file (e.g., "Type Consistency Checker")
 
-| Agent | Keywords |
-|-------|----------|
-| Type Consistency | type, interface, schema, model, data, enum, definition, payload, field, CREATE TABLE, column, NOT NULL, DEFAULT, REFERENCES |
-| State Machine | state, machine, lifecycle, transition, status, flow, recovery, watchdog, guard |
-| API Contract | api, endpoint, route, rest, websocket, event, command, payload, error, response |
-| Cross-Reference | *(all sections — check "see section" refs, dangling links, field name consistency)* |
-| Completeness | *(all sections — scan for TODO, TBD, undefined, unspecified, gap, placeholder, table, CREATE TABLE, schema, DDL, index, migration, constraint)* |
-| Architectural | architect, design, decision, boundary, security, scope, v1, v2, trade-off, principle |
-| Build vs Reuse | technolog, framework, library, tool, stack, custom, protocol, implement |
-
----
-
-#### Agent 1: Type Consistency Agent
-```
-You are a Type Consistency expert reviewing a PRD for type-level inconsistencies.
-
-Files to analyze:
-<FILE_LIST>
-
-Then analyze:
-
-SAME-MEDIUM CONSISTENCY (TypeScript ↔ TypeScript):
-- Are the same types/interfaces defined identically everywhere they appear?
-- Same field with different types in different sections or files?
-- Missing fields in one definition that exist in another?
-- Enum values that differ between sections (e.g., status values in data model vs API vs events)?
-- TypeScript interfaces in markdown that contradict each other?
-- Payload schemas that don't match their TypeScript interface definitions?
-- Union types that include or exclude different members in different places?
-
-CROSS-MEDIUM CONSISTENCY (TypeScript ↔ DB schema ↔ prose):
-If the codebase includes a DB schema file (e.g., schema.ts, schema.sql, Drizzle/Prisma schema):
-- Does every column in the DDL have a corresponding field in the TypeScript type?
-- Does every field in the TypeScript type have a corresponding column in the DDL?
-- Are nullability constraints consistent? (TS `string | null` ↔ DDL nullable column; TS `string` ↔ DDL `NOT NULL`)
-- Do DDL DEFAULT values match the business logic defaults in code (e.g., DEFAULT 0 for counters)?
-- Do DDL enum CHECK constraints (if any) match the TypeScript enum values?
-- Are FK relationships in DDL consistent with the relationships described in TypeScript types and prose?
-
-If the codebase includes prose table definitions (markdown tables in the PRD):
-- Do prose column names match the DDL column names AND the TypeScript field names?
-- Do prose type descriptions match the actual DDL types and TS types?
-
-For each finding, provide:
-1. **Title** — short description
-2. **Severity** — Critical (would cause bug/data loss), Important (would cause confusion), Minor (cosmetic)
-3. **Where** — exact section names, line numbers, or file paths where the inconsistency appears
-4. **Description** — what's inconsistent and why it matters
-5. **Recommendation** — specific fix
-
-Return findings as a numbered list. If no findings, say "No type consistency issues found."
-```
-
-#### Agent 2: State Machine Completeness Agent
-```
-You are a State Machine expert reviewing a PRD for state machine completeness.
-
-Files to analyze:
-<FILE_LIST>
-
-Then analyze:
-- Is every state reachable from the initial state?
-- Does every non-final state have at least one outgoing transition?
-- Are ALL transitions documented with guards (preconditions) and side effects?
-- Do recovery/timeout/watchdog transitions match the main state diagram?
-- Are there transitions described in prose (e.g., in recovery sections, error handling, API preconditions) that are NOT in the state machine diagram or definition?
-- Are status enum values consistent between the state machine definition, API sections, and event definitions?
-- If an item can reach a state through multiple paths, are the side effects consistent?
-
-For each finding, provide:
-1. **Title** — short description
-2. **Severity** — Critical / Important / Minor
-3. **Where** — exact section names, line numbers, or file paths
-4. **Description** — what's missing or inconsistent
-5. **Recommendation** — specific fix
-
-Return findings as a numbered list. If no state machine is defined, say "No state machine found in this PRD." If found but complete, say "State machine is complete — no issues found."
-```
-
-#### Agent 3: API Contract Alignment Agent
-```
-You are an API Contract expert reviewing a PRD for API-level inconsistencies.
-
-Files to analyze:
-<FILE_LIST>
-
-Then analyze:
-- For each REST endpoint or WebSocket command:
-  - Does the payload schema match the TypeScript interface?
-  - Are preconditions/guards consistent with the state machine?
-  - Are error responses documented for all failure cases?
-  - Are HTTP status codes or error codes specified?
-- Do event names in any event catalog match the type definitions?
-- Are command acknowledgment and error response formats consistent?
-- Do internal vs client-facing event classifications match throughout?
-- Are idempotency requirements specified consistently?
-- Do endpoint descriptions match the actual payload definitions?
-
-For each finding, provide:
-1. **Title** — short description
-2. **Severity** — Critical / Important / Minor
-3. **Where** — exact section names, line numbers, or file paths
-4. **Description** — what's inconsistent
-5. **Recommendation** — specific fix
-
-Return findings as a numbered list. If no API contract is defined, say "No API contract found." If found but consistent, say "API contract is consistent — no issues found."
-```
-
-#### Agent 4: Cross-Reference Validity Agent
-```
-You are a Cross-Reference expert reviewing a PRD for broken or inconsistent references.
-
-Files to analyze:
-<FILE_LIST>
-
-Then analyze:
-- Do all "see section X" or "as described in Y" references point to existing sections?
-- Are referenced code files present and do they match the prose description?
-- Are field names consistent across data model, API, event, and state machine sections?
-- Are concepts introduced in one section and used in another with the same meaning?
-- Are there sections that reference decisions from a "Design Decisions" log — do those decisions match the actual implementation described elsewhere?
-- Are there dangling references (pointing to content that was moved or deleted)?
-
-For each finding, provide:
-1. **Title** — short description
-2. **Severity** — Critical / Important / Minor
-3. **Where** — the reference location AND the target (or missing target)
-4. **Description** — what's broken or inconsistent
-5. **Recommendation** — specific fix
-
-Return findings as a numbered list. If all references are valid, say "All cross-references are valid — no issues found."
-```
-
-#### Agent 5: Completeness Gaps Agent
-```
-You are a Completeness expert reviewing a PRD for missing definitions, unspecified behavior, and gaps.
-
-Files to analyze:
-<FILE_LIST>
-
-Then analyze:
-
-GENERAL COMPLETENESS:
-- Are there entities, types, or concepts mentioned but never formally defined?
-- Are there state transitions without documented side effects?
-- Are there error scenarios without specified handling behavior?
-- Are default values specified for all fields that need them?
-- Are there missing TypeScript interfaces that other sections reference?
-- Are there "TODO", "TBD", "FIXME", or placeholder markers that need resolution?
-- Are there scenarios where behavior is ambiguous (two valid interpretations)?
-- Are there edge cases that are mentioned but not fully specified?
-
-PERSISTENCE CHECKLIST (activate if the PRD has a data model or database section):
-- For every table described in prose: does a corresponding executable DDL exist (CREATE TABLE in a code file like schema.ts, schema.sql, or ORM schema)?
-- Are SQLite/Postgres/etc column types specified (not just "string" or "integer" in prose)?
-- Are NOT NULL constraints defined for fields that should never be null?
-- Are DEFAULT values specified for fields that need them (counters, booleans, status enums)?
-- Are foreign key relationships declared in DDL (not just described in prose)?
-- Are indexes defined for performance-critical query paths (e.g., claim-next, watchdog queries)?
-- Is there a migration/versioning strategy if the schema will evolve?
-- Are database pragmas/settings specified (WAL mode, busy timeout, foreign key enforcement)?
-- Are transaction boundaries documented for multi-table operations?
-
-REPRESENTATION COVERAGE (activate if the same entity appears in multiple mediums):
-When an entity (e.g., "work_items") is described in multiple representations (prose table, TypeScript type, DB DDL, API DTO, event payload):
-- Is there a representation for each layer that needs one? (Missing a DB schema when prose tables exist = Critical gap)
-- Is the "source of truth" explicitly designated for each concern? (Types = TS, Storage = DDL, Transport = DTO)
-- Are there representations that should exist but don't? (e.g., prose describes 5 tables but DDL only covers 3)
-
-For each finding, provide:
-1. **Title** — short description
-2. **Severity** — Critical / Important / Minor
-3. **Where** — exact section names, line numbers, or file paths where the gap exists
-4. **Description** — what's missing and why it matters for implementation
-5. **Recommendation** — what needs to be specified
-
-Return findings as a numbered list. If the PRD is complete, say "No completeness gaps found."
-```
-
-#### Agent 6: Architectural Consistency Agent
-```
-You are an Architectural Consistency expert reviewing a PRD for high-level design issues.
-
-Files to analyze:
-<FILE_LIST>
-
-Then analyze:
-- Are V1 vs future/V2 boundaries explicit and consistent throughout?
-- Are there assumptions that should be documented as explicit decisions?
-- Are there design decisions that contradict each other?
-- Is the security model consistent (auth tokens, session management, permission checks)?
-- Are concurrency/locking concerns addressed consistently (e.g., mutex usage, CAS checks)?
-- Are there sections that describe the same concept with different semantics?
-- Is the data flow consistent end-to-end (producer → processing → output)?
-- Are there "accepted risks" or "V1 trade-offs" that contradict other sections?
-
-For each finding, provide:
-1. **Title** — short description
-2. **Severity** — Critical / Important / Minor
-3. **Where** — exact section names, line numbers, or file paths
-4. **Description** — what's inconsistent and the architectural impact
-5. **Recommendation** — specific fix or decision needed
-
-Return findings as a numbered list. If architecturally consistent, say "No architectural consistency issues found."
-```
-
-#### Agent 7: Build vs Reuse Agent
-```
-You are a Technology Strategy expert reviewing a PRD for "reinventing the wheel" — areas where the PRD describes custom implementations for problems that existing, mature frameworks or libraries already solve.
-
-Files to analyze:
-<FILE_LIST>
-
-Then analyze:
-
-CUSTOM IMPLEMENTATIONS:
-- Are there custom protocol designs (message ordering, reconnection, gap recovery, correlation IDs) where existing tools like Socket.IO, tRPC, or GraphQL subscriptions would suffice?
-- Are there custom retry/timeout/abort patterns repeated across multiple agents or components where a shared abstraction or library (e.g., p-retry, AbortController patterns) would eliminate boilerplate?
-- Are there hand-rolled state machines in prose where XState, Robot, or a formal transition table would provide type safety and visualization?
-- Are there custom validation schemas described in markdown where zod, yup, or similar runtime validation libraries would enforce them?
-- Are there custom auth/session mechanisms where established patterns (JWT, session middleware, Passport) would be more robust?
-- Are there custom caching, queuing, or scheduling implementations where existing solutions (BullMQ, node-cron, lru-cache) exist?
-- Are there custom realtime/streaming implementations where SSE, WebSocket libraries, or framework-level solutions handle the transport?
-- For each finding: is this area actually CORE to the product (unique differentiator), or is it COMMODITY infrastructure that shouldn't consume spec/implementation effort?
-
-REPRESENTATION DRIFT RISK:
-- Count how many separate representations exist for the same core entities (e.g., TypeScript types + DB DDL + prose tables + API DTOs + event payloads). If 3 or more representations exist for the same entity:
-  - Flag this as a maintenance risk — changes must propagate to all representations manually.
-  - Recommend single-source tools that could eliminate drift by construction:
-    - **Drizzle ORM**: Define schema once in TypeScript → derives SQL DDL + TypeScript types
-    - **Prisma**: Schema file → generates client types + migration SQL
-    - **tRPC**: Define procedures once → derives client types + server handlers
-    - **Zod + drizzle-zod**: Zod schemas → derives DB schema + runtime validation
-  - For each recommendation, note the trade-off: single-source eliminates drift but adds a framework dependency and may constrain schema expressiveness.
-
-For each finding, provide:
-1. **Title** — what's being reinvented (or what drift risk exists)
-2. **Severity** — Important (significant spec/implementation savings) or Minor (small savings)
-3. **Where** — exact sections in the PRD that describe the custom implementation
-4. **Lines of spec affected** — approximate line count that would shrink or disappear
-5. **Existing alternatives** — 2-3 specific frameworks/libraries that solve this, with brief trade-offs
-6. **Recommendation** — which alternative to consider and why
-
-Return findings as a numbered list. If the PRD appropriately uses existing tools for non-core concerns, say "No reinventing-the-wheel issues found — technology choices are appropriate."
-```
+Save the returned `output_file` path for each agent. You will need these in Step 3.
 
 ### 3. Collect and Merge Results
 
-After all agents complete:
+After launching all agents, collect results by reading each agent's `output_file` using the Read tool. If an agent is still running, the output file will contain partial results — wait briefly and re-read.
 
-1. **Collect** all findings from all 7 agents.
-2. **Deduplicate** — if two agents found the same issue (same location, same problem), merge into one finding, noting which agents found it.
-3. **Number** findings sequentially (#1, #2, #3...).
-4. **Group** by severity: Critical → Important → Minor.
+1. **Read** each agent's output file. If the file ends without findings (agent still running) → wait 10 seconds (`Bash: sleep 10`) and re-read.
+2. **Collect** all findings from all 7 agents.
+3. **Deduplicate** — if two agents found the same issue (same location, same problem), merge into one finding, noting which agents found it.
+4. **Number** findings sequentially (#1, #2, #3...).
+5. **Group** by severity: Critical → Important → Minor.
 
 ### 4. Generate Report
 
