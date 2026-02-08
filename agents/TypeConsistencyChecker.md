@@ -34,9 +34,10 @@ If the codebase includes prose table definitions (markdown tables in the PRD):
 
 For each finding, provide:
 1. **Title** — short description
-2. **Severity** — Critical (would cause bug/data loss), Important (would cause confusion), Minor (cosmetic)
-3. **Where** — exact section names, line numbers, or file paths where the inconsistency appears
-4. **Description** — what's inconsistent and why it matters
-5. **Recommendation** — specific fix
+2. **Severity** — Critical (runtime bug/data loss) / Important (implementation confusion) / Minor (cosmetic)
+3. **Where** — exact file paths and line numbers you read
+4. **Evidence** — QUOTE the exact code or prose lines that prove the issue. Copy-paste from your Read tool output. If you cannot quote actual content you read, do NOT report the finding.
+5. **Description** — what's inconsistent and why it matters
+6. **Recommendation** — specific fix
 
 Return findings as a numbered list. If no findings, say "No type consistency issues found."

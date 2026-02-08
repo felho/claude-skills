@@ -33,9 +33,10 @@ REPRESENTATION DRIFT RISK:
 For each finding, provide:
 1. **Title** — what's being reinvented (or what drift risk exists)
 2. **Severity** — Important (significant spec/implementation savings) or Minor (small savings)
-3. **Where** — exact sections in the PRD that describe the custom implementation
-4. **Lines of spec affected** — approximate line count that would shrink or disappear
-5. **Existing alternatives** — 2-3 specific frameworks/libraries that solve this, with brief trade-offs
-6. **Recommendation** — which alternative to consider and why
+3. **Where** — exact file paths, section names, and line numbers you read
+4. **Evidence** — QUOTE the exact code or prose lines showing the custom implementation. Copy-paste from your Read tool output. If you cannot quote actual content you read, do NOT report the finding.
+5. **Lines of spec affected** — approximate line count that would shrink or disappear
+6. **Existing alternatives** — 2-3 specific frameworks/libraries that solve this, with brief trade-offs
+7. **Recommendation** — which alternative to consider and why
 
 Return findings as a numbered list. If the PRD appropriately uses existing tools for non-core concerns, say "No reinventing-the-wheel issues found — technology choices are appropriate."

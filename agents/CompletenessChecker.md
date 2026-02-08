@@ -39,9 +39,10 @@ When an entity (e.g., "work_items") is described in multiple representations (pr
 
 For each finding, provide:
 1. **Title** — short description
-2. **Severity** — Critical / Important / Minor
-3. **Where** — exact section names, line numbers, or file paths where the gap exists
-4. **Description** — what's missing and why it matters for implementation
-5. **Recommendation** — what needs to be specified
+2. **Severity** — Critical (runtime bug/data loss) / Important (implementation confusion) / Minor (cosmetic)
+3. **Where** — exact file paths and line numbers you read
+4. **Evidence** — QUOTE the exact code or prose lines that prove the gap. Copy-paste from your Read tool output. For "missing" findings, quote the context where the missing item SHOULD be and explain what's absent. If you cannot quote actual content you read, do NOT report the finding.
+5. **Description** — what's missing and why it matters for implementation
+6. **Recommendation** — what needs to be specified
 
 Return findings as a numbered list. If the PRD is complete, say "No completeness gaps found."

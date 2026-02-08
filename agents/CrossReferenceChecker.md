@@ -18,9 +18,10 @@ Then analyze:
 
 For each finding, provide:
 1. **Title** — short description
-2. **Severity** — Critical / Important / Minor
-3. **Where** — the reference location AND the target (or missing target)
-4. **Description** — what's broken or inconsistent
-5. **Recommendation** — specific fix
+2. **Severity** — Critical (runtime bug/data loss) / Important (implementation confusion) / Minor (cosmetic)
+3. **Where** — the reference location AND the target (or missing target), with exact file paths and line numbers
+4. **Evidence** — QUOTE the exact code or prose lines that prove the issue. Copy-paste from your Read tool output. If you cannot quote actual content you read, do NOT report the finding.
+5. **Description** — what's broken or inconsistent
+6. **Recommendation** — specific fix
 
 Return findings as a numbered list. If all references are valid, say "All cross-references are valid — no issues found."
