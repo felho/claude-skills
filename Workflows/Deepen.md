@@ -17,6 +17,10 @@ COMPLEXITY_SIGNALS_REF: references/ComplexitySignals.md (relative to CraftPRD sk
 ## Instructions
 
 - If `PRD_PATH` is empty → STOP with "Usage: provide a path to the PRD file."
+- **Path resolution (MUST do first):** `PRD_PATH` may be relative. Resolve it to an absolute path before ANY tool call:
+  1. If `PRD_PATH` is already absolute (starts with `/`) → use as-is.
+  2. If relative → resolve against the **current working directory** (the directory Claude Code was launched from). Use `Glob` with the relative pattern to find the actual file. If Glob finds exactly one match, use that absolute path. If zero matches, try common prefixes (`~/`, `./`) before reporting "not found".
+  3. **Update `PRD_PATH`** to the resolved absolute path for all subsequent steps.
 - This workflow is **iterative and interactive**. Each iteration deepens one area, then checks complexity.
 - Write all PRD content in **English**.
 - When adding technical detail, prefer prose descriptions over code blocks. If a code block feels necessary, that's a complexity signal.

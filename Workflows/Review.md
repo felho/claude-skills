@@ -17,6 +17,10 @@ AGENT_MODEL: sonnet (for review agents — fast, thorough, cost-effective)
 ## Instructions
 
 - If `PRD_PATH` is empty → STOP with "Usage: provide a path to the PRD or design doc."
+- **Path resolution (MUST do first):** `PRD_PATH` may be relative. Resolve it to an absolute path before ANY tool call:
+  1. If `PRD_PATH` is already absolute (starts with `/`) → use as-is.
+  2. If relative → resolve against the **current working directory** (the directory Claude Code was launched from). Use `Glob` with the relative pattern to find the actual file. If Glob finds exactly one match, use that absolute path. If zero matches, try common prefixes (`~/`, `./`) before reporting "not found".
+  3. **Update `PRD_PATH`** to the resolved absolute path for all subsequent steps.
 - This workflow is **read-only** — it does NOT modify the PRD or source files. It produces a findings report (optionally written to a file).
 - Launch **all 7 agents in parallel** using the Task tool with `subagent_type: "general-purpose"`.
 - If `SCOPE` is "quick", launch only agents 1-3 (the most impactful checks).

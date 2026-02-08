@@ -17,6 +17,7 @@ TEMPLATE_PATH: references/Templates/OnePager.md (relative to CraftPRD skill dire
 
 ## Instructions
 
+- **Path resolution:** If `NOTES_PATH` is provided and is relative (doesn't start with `/`), resolve it against the **current working directory**. Use `Glob` to find the actual file. Update `NOTES_PATH` to the resolved absolute path.
 - If `NOTES_PATH` is provided, use those notes as input. If not, ask the user to describe the idea (effectively combining Explore + Draft).
 - Write the PRD in **English** regardless of conversation language.
 - Keep it to **one page** — ruthlessly prioritize. A one-pager should be readable in 5 minutes.

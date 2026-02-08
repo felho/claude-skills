@@ -19,6 +19,10 @@ MIN_SEVERITY: extracted from `--min-severity=` flag in arguments (default: "mino
 ## Instructions
 
 - If `PRD_PATH` is empty → STOP with "Usage: provide the PRD path."
+- **Path resolution (MUST do first):** `PRD_PATH` may be relative. Resolve it to an absolute path before ANY tool call:
+  1. If `PRD_PATH` is already absolute (starts with `/`) → use as-is.
+  2. If relative → resolve against the **current working directory** (the directory Claude Code was launched from). Use `Glob` with the relative pattern to find the actual file. If Glob finds exactly one match, use that absolute path. If zero matches, try common prefixes (`~/`, `./`) before reporting "not found".
+  3. **Update `PRD_PATH`** to the resolved absolute path for all subsequent steps.
 - If no findings are available (neither in context nor at `FINDINGS_SOURCE`) → STOP with "No findings found. Run the Review workflow first."
 
 ### Medium-Aware Mindset (CRITICAL)
