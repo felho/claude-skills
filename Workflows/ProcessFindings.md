@@ -70,14 +70,27 @@ For each finding, provide TWO things:
 
 If your recommendation differs from the original finding, briefly explain why (e.g., "The review suggested adding a transition table to the PRD, but the code already has it — the fix is to update prose references instead.").
 
-### User Decisions
+### User Decisions (via AskUserQuestion)
 
-After presenting, the user will respond with one of:
-- **Apply** (or just approves) — execute the recommendation as presented
-- **Modify** — user provides adjusted direction, then apply
-- **Skip** — no change for this finding, move to next
-- **Stop** — stop processing, remaining findings are deferred
-- **Question** — user asks a clarifying question, answer it, then wait for a decision
+After presenting, use the `AskUserQuestion` tool to collect the user's decision. This is faster and more structured than free-text input.
+
+```
+AskUserQuestion:
+  question: "Finding #N — <Title> [Severity]"
+  header: "Decision"
+  options:
+    - label: "Apply"
+      description: "Execute the recommendation as presented"
+    - label: "Skip"
+      description: "No change for this finding, move to next"
+    - label: "Stop"
+      description: "Stop processing, defer remaining findings"
+  multiSelect: false
+```
+
+The user can also select "Other" (always available) to:
+- **Modify** — provide adjusted direction, then apply
+- **Ask a question** — get clarification, then decide again
 
 ## Workflow
 
@@ -134,13 +147,12 @@ If there is a completed fix from the previous finding, commit it as a background
 ---
 ```
 
-**Step C — Wait for user decision:**
-- User responds (apply / modify / skip / stop / question)
-- If **apply**: execute the fix (Edit/Write the files)
-- If **modify**: adjust per user's direction, then execute
-- If **skip**: note it, move to next finding
-- If **stop**: report remaining findings count, exit the loop
-- If **question**: answer, then wait for decision again
+**Step C — Collect user decision (AskUserQuestion):**
+Use `AskUserQuestion` as described in "User Decisions" above. Then:
+- If **Apply**: execute the fix (Edit/Write the files)
+- If **Skip**: note it, move to next finding
+- If **Stop**: report remaining findings count, exit the loop
+- If **Other** (free text): interpret as modify direction or question. If question → answer, then ask again. If direction → adjust and execute.
 
 </finding-pipeline-loop>
 
