@@ -1,6 +1,6 @@
 ---
 description: Validate a structured PRD's code artifacts for cross-reference integrity, structural completeness, and type consistency using parallel checker agents.
-argument-hint: <prd-path> [--scope=full|quick]
+argument-hint: <prd-path> [--scope=full|quick] [--replicas=name:count,...]
 allowed-tools: Read, Glob, Grep, AskUserQuestion, Task
 ---
 
@@ -14,6 +14,12 @@ PRD_PATH: $1 (path to the main PRD or design doc)
 SCOPE: extracted from `--scope=` flag (optional: "full" | "quick" — default: "full")
 AGENT_MODEL: opus (for validator agents — accuracy matters, mechanical checking needs reliable tool use)
 MIN_AGENT_READS: 3 (minimum Read tool calls a validator must make for results to be valid)
+REPLICAS: extracted from `--replicas=` flag (optional).
+  Format: comma-separated `name:count` pairs.
+  Short names: crossref, structural, type.
+  Default: each applicable validator runs 1 instance (current behavior).
+  Setting count to 0 skips that validator entirely.
+  Example: `--replicas=structural:3,crossref:0,type:0`
 
 ## Instructions
 
@@ -69,15 +75,23 @@ For each `.ts` file, classify by filename and path:
 
 If a file doesn't match any known pattern, flag it in the discovery report as "uncovered."
 
-#### 1.4 Determine Applicable Validators
+#### 1.4 Determine Applicable Validators and Replica Counts
 
-Based on which patterns are present:
+**Precedence rules** (first match wins):
 
-- **CrossReferenceIntegrity**: Always runs (at minimum checks import resolution and prose references).
-- **StructuralCompleteness**: Runs if state machine file is detected.
-- **TypeConsistency**: Runs if domain types file is detected.
+1. **If `REPLICAS` is specified** → it takes full control. Each validator's instance count comes from the flag. Validators not mentioned in the flag default to 1 instance if applicable (per pattern rules below), or 0 if not applicable. A count of 0 skips that validator entirely. `--scope` is ignored when `--replicas` is present.
 
-If SCOPE is "quick" → run only CrossReferenceIntegrity.
+2. **If only `SCOPE` is "quick"** (no `--replicas`) → only CrossReferenceIntegrity runs (1 instance). Same as current behavior.
+
+3. **If neither is specified** → default behavior: 1 instance per applicable validator (current behavior).
+
+**Applicability** (used for defaults when a validator is not mentioned in `--replicas`):
+
+- **CrossReferenceIntegrity** (`crossref`): Always applicable.
+- **StructuralCompleteness** (`structural`): Applicable if state machine file is detected.
+- **TypeConsistency** (`type`): Applicable if domain types file is detected.
+
+Build a **VALIDATOR_PLAN**: a list of `(validator_name, instance_count)` tuples to use in subsequent steps.
 
 #### 1.5 Report Discovery
 
@@ -98,27 +112,30 @@ Uncovered files: <list of files not matching any pattern, or "none">
 Note: These files are not covered by current validation rules.
 Consider whether they contain cross-referenceable definitions.
 
-Validators to run: <list based on patterns + scope>
-Launching <N> parallel validators...
+Validators to run:
+  - Cross-Reference Integrity: <N> instance(s) <or "skipped" if 0>
+  - Structural Completeness: <N> instance(s) <or "skipped" if 0>
+  - Type Consistency: <N> instance(s) <or "skipped" if 0>
+Launching <TOTAL> parallel validators...
 ```
 
 ### 2. Launch Parallel Validators (Background Tasks)
 
 #### Validator roster
 
-| # | Validator file | Quick scope | Runs if |
-|---|---------------|-------------|---------|
-| 1 | `validators/CrossReferenceIntegrity.md` | yes | Always |
-| 2 | `validators/StructuralCompleteness.md` | no | State machine detected |
-| 3 | `validators/TypeConsistency.md` | no | Domain types detected |
+| # | Validator file | Short name | Quick scope | Default applicability |
+|---|---------------|------------|-------------|----------------------|
+| 1 | `validators/CrossReferenceIntegrity.md` | crossref | yes | Always |
+| 2 | `validators/StructuralCompleteness.md` | structural | no | State machine detected |
+| 3 | `validators/TypeConsistency.md` | type | no | Domain types detected |
 
 #### Prompt composition
 
-First, **read ALL applicable validator files in parallel** (all Read calls in one message). Then compose prompts:
+First, **read ALL applicable validator files in parallel** (all Read calls in one message — read each validator file only once regardless of replica count). Then compose prompts:
 
 For each validator file:
 <prompt-composition-loop>
-1. Read the validator file content.
+1. Read the validator file content (once per validator type, reuse for all replicas).
 2. **Replace** `{FILE_LIST}` with the actual file list from Step 1, formatted as:
    ```
    - <absolute_path> (<line_count> lines) — <pattern classification>
@@ -146,28 +163,46 @@ For each validator file:
    ```
 </prompt-composition-loop>
 
+Each replica of the same validator type gets the **exact same prompt** — no differentiation. Replicas rely on LLM non-determinism to produce different findings.
+
+#### Replica naming
+
+- **1 instance** → use the validator name as-is (e.g., "Structural Completeness") — same as today.
+- **N instances (N > 1)** → append a `#` suffix: "Structural Completeness #1", "Structural Completeness #2", etc.
+
 #### Parallel launch (background tasks)
 
 > **CRITICAL — USE BACKGROUND TASKS FOR PARALLELISM:**
-> Launch ALL validators with `run_in_background: true`. Each Task call returns immediately with an `output_file` path — the validator runs concurrently in the background.
+> Launch ALL validator replicas with `run_in_background: true`. Each Task call returns immediately with an `output_file` path — the validator runs concurrently in the background.
 
-Launch all applicable validators as background Task calls:
-- `subagent_type: "general-purpose"`
-- `model: {AGENT_MODEL}`
-- `run_in_background: true`
-- `description:` validator title from the file (e.g., "Cross-Reference Integrity")
+<replica-launch-loop>
+For each entry in VALIDATOR_PLAN where instance_count > 0:
+  For replica_index from 1 to instance_count:
+    Launch a background Task call:
+    - `subagent_type: "general-purpose"`
+    - `model: {AGENT_MODEL}`
+    - `run_in_background: true`
+    - `description:` replica display name (e.g., "Structural Completeness #2")
+    - `prompt:` the composed prompt for this validator type (same for all replicas)
 
-Save the returned `output_file` path for each validator.
+    Save the returned `output_file` path, keyed by replica display name.
+</replica-launch-loop>
+
+Validators with instance_count = 0 are skipped entirely (no Task launched).
 
 ### 3. Collect and Merge Results
 
-After launching all validators, collect results by reading each validator's `output_file`.
+After launching all validator replicas, collect results by reading each replica's `output_file`.
 
-1. **Read** each validator's output file. If the file ends without results (validator still running) → wait 10 seconds (`Bash: sleep 10`) and re-read.
-2. **Zero-read filter:** If a validator made fewer than `{MIN_AGENT_READS}` Read calls, **discard its results** and note it as "Discarded (insufficient reading)" in the Validator Summary.
-3. **Collect** all findings from validators that passed the filter.
-4. **Flatten** findings from all validators into a single list.
-5. **Deduplicate** — if two validators found the same issue (same file, same line, same problem), merge into one finding, noting which validators found it.
+1. **Read** each replica's output file. If the file ends without results (replica still running) → wait 10 seconds (`Bash: sleep 10`) and re-read.
+2. **Zero-read filter (per replica):** If a replica made fewer than `{MIN_AGENT_READS}` Read calls, **discard its results** and note it as "Discarded (insufficient reading)" in the Validator Summary. Each replica is filtered independently.
+3. **Collect** all findings from replicas that passed the filter.
+4. **Flatten** findings from all replicas into a single list.
+5. **Deduplicate** — merge findings that match on (same file, same line, same problem):
+   - **Across different validator types** (same as before): merge into one finding, noting which validators found it.
+   - **Across replicas of the same validator type**: same rule — merge into one finding. The `Found by` field lists all replicas that independently found it (e.g., "Structural #1, Structural #3").
+   - Different findings from different replicas → keep both as separate findings.
+   - Track `total_findings` (before dedup) and `unique_findings` (after dedup) for the dedup note.
 6. **Number** findings sequentially (#1, #2, #3...).
 7. **Sort** by severity: Critical → Important → Minor.
 
@@ -181,11 +216,14 @@ Write the merged report to the user. If findings count > 10, also offer to write
 PRD Validation: <PRD name>
 Files: <N> code + <M> docs (<TOTAL_LINES> total lines)
 Scope: <full | quick>
-Validators: <N> launched, <N> returned results
+Replicas: <replica config summary, e.g. "structural:3, crossref:0, type:0" or "default (1 each)">
+Validators: <N> replicas launched, <N> returned results
 
 ---
 
 ## Rule Summary
+
+> Aggregate across replicas — FAIL(N) if **any** replica found issues for that rule.
 
 | Validator | Rule | Status |
 |-----------|------|--------|
@@ -238,6 +276,11 @@ Rules: <passed> passed, <failed> failed, <skipped> skipped
 
 ---
 
+<If any replicas ran (total instance count > 1 for any validator):>
+Unique findings: <unique_findings> (from <total_findings> total across <total_replicas> replicas, <duplicates_merged> duplicates merged)
+
+---
+
 ## Recommended Fix Order
 
 1. <Most impactful fix first — finding #N>
@@ -248,9 +291,15 @@ Rules: <passed> passed, <failed> failed, <skipped> skipped
 
 | Validator | Reads | Findings | Status |
 |-----------|-------|----------|--------|
-| Cross-Reference Integrity | <N> | <N> | Completed |
-| Structural Completeness | <N> | <N> | Completed / Skipped |
-| Type Consistency | <N> | <N> | Completed / Skipped |
+| Cross-Reference Integrity | <N> | <N> | Completed / Skipped (0 replicas) |
+| Structural Completeness #1 | <N> | <N> | Completed |
+| Structural Completeness #2 | <N> | <N> | Completed |
+| ... | ... | ... | ... |
+| Type Consistency | — | — | Skipped (0 replicas) |
+
+> Show one row per replica. Use the replica display name (with `#N` suffix when N > 1).
+> For skipped validators (0 replicas), show a single row with "—" for Reads/Findings.
+> For discarded replicas (insufficient reads), show "Discarded (insufficient reading)" in Status.
 
 ---
 
