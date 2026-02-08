@@ -15,12 +15,13 @@ FOCUS_AREA: (optional, extracted from user message if present)
 
 - If `VIDEO_URL` is empty -> STOP and report: `"Usage: Provide a YouTube URL. Example: analyze this video https://youtube.com/watch?v=..."`
 - All report content MUST be in English regardless of conversation language
-- Transcript quotes must include timestamps for verifiability
+- All timestamps MUST be clickable YouTube deep links: `[HH:MM:SS](https://youtube.com/watch?v=VIDEO_ID&t=SECONDS)` where SECONDS = HH*3600 + MM*60 + SS
 - When extracting GitHub links from descriptions, look for github.com URLs specifically
 - Clone repos using `gh repo clone` to `$REPOS_DIR/`
 - Do NOT attempt to run or build code from cloned repos — read-only analysis
 - Focus on patterns and ideas applicable to our system, not just documenting the video
 - If `FOCUS_AREA` is specified, weight the analysis toward that topic but don't ignore other insights
+- If transcript exceeds 2000 lines, read in chunks and summarize key sections before full analysis
 
 ## Workflow
 
@@ -28,62 +29,82 @@ FOCUS_AREA: (optional, extracted from user message if present)
 
 - If `VIDEO_URL` is empty -> STOP and report: `"Usage: Provide a YouTube URL"`
 - Create directories: `mkdir -p $REPORT_DIR` and `mkdir -p $REPOS_DIR`
+- Verify `$REPORT_DIR` exists: `ls $REPORT_DIR` — if it fails -> STOP and report: `"Error: REPORT_DIR does not exist: $REPORT_DIR"`
 
-### 2. Extract Video Metadata
+### 2. Extract Metadata, Description, and Transcript (parallel)
 
-- Run `yt-dlp --skip-download --print "%(title)s" --print "%(channel)s" --print "%(upload_date)s" --print "%(duration_string)s" "VIDEO_URL"` to get title, channel, date, duration
-- Run `yt-dlp --skip-download --print "%(description)s" "VIDEO_URL"` to get the full description
+Run ALL THREE commands in parallel (single message, multiple Bash calls):
+- `yt-dlp --skip-download --print "%(title)s" --print "%(channel)s" --print "%(upload_date)s" --print "%(duration_string)s" "VIDEO_URL"`
+- `yt-dlp --skip-download --print "%(description)s" "VIDEO_URL"`
+- `yt-transcript "VIDEO_URL" -o /tmp/{video-id}-transcript.txt`
+
+Then:
 - Extract the video ID from the URL for file naming
-
-### 3. Download Transcript
-
-- Run `yt-transcript "VIDEO_URL" -o /tmp/{video-id}-transcript.txt`
 - If transcript download fails -> note in report, continue with metadata-only analysis
 - Read the transcript file to load it into context
 
-### 4. Parse Description for GitHub Links
+### 3. Parse Description for GitHub Links
 
 - Search the description text for `github.com` URLs
 - If multiple GitHub links found -> select the one most likely to be the companion repo (usually the first non-docs link, or the one matching the video topic)
 - Store as `REPO_URL` variable
 
-### 5. Clone and Explore Repository (conditional)
+### 4. Clone and Explore Repository (conditional)
 
-- If no `REPO_URL` found -> skip to step 6
+- If no `REPO_URL` found -> skip to step 5
 
 <repo-analysis>
 - If repo already exists at `$REPOS_DIR/{repo-name}` -> skip clone, reuse existing
 - Run `gh repo clone {owner}/{repo-name} $REPOS_DIR/{repo-name} -- --depth 1`
 - List the repo structure: `find $REPOS_DIR/{repo-name} -type f -not -path '*/.git/*'`
-- Identify key files to read, prioritizing:
+- Identify key files to read (max 10-12), prioritizing:
   - README.md, CLAUDE.md
   - Configuration files (.claude/settings.json, .claude/agents/*, .claude/commands/*)
   - Spec/plan files (specs/, plans/, docs/)
   - Source code entry points
-- For each key file identified:
+  - Skip binary files, images, lock files
+- Read key files in batches of 3-4 per turn (parallel Read calls) to reduce round-trips:
   <read-key-files-loop>
-  - Read the file
+  - Read 3-4 files in parallel
+  - If a file is empty or minimal (<5 lines) -> note in Raw Notes, look for alternative documentation
   - Note patterns, techniques, and architectural decisions
   - Cross-reference with transcript: does the video creator explain WHY this was done this way?
   </read-key-files-loop>
+- If more interesting files remain beyond the cap, note them in Raw Notes for potential follow-up
 </repo-analysis>
 
-### 6. Analyze and Cross-Reference
+### 5. Analyze and Cross-Reference
+
+Before writing the report, explicitly work through these sub-steps:
 
 - Review transcript for key concepts, techniques, and verbal explanations
 - If repo was cloned -> map transcript discussions to specific code/files
-- Identify patterns that could improve our existing system:
-  - Compare against our skill structure (`~/.claude/skills/`)
-  - Compare against our hooks (`~/.claude/settings.json` hooks section)
-  - Compare against our CLAUDE.md conventions
-  - Compare against our workflow patterns
+- Draft a list of the top 5-7 improvement ideas — verify each has a specific code or transcript reference
+- Compare against our existing system:
+  - Our skill structure (`~/.claude/skills/`) — what does the video's setup do differently?
+  - Our hooks (`~/.claude/settings.json` hooks section)
+  - Our CLAUDE.md conventions
+  - Our workflow patterns
 - Collect "transcript annotations": insights the creator shares verbally that aren't visible in the code
 
-### 7. Generate Report
+### 6. Generate Report
 
 - Read the report format reference: `references/ReportFormat.md`
 - Generate the Markdown report following that format
 - Save to `$REPORT_DIR/{yyyy-mm-dd}-{short-slug}.md` (date = video upload date; video ID goes in frontmatter only)
+
+### 7. Self-Check
+
+Verify the generated report before presenting to user:
+- [ ] File exists at expected `$REPORT_DIR` path
+- [ ] Frontmatter has all required fields (`status`, `video_id`, `channel`, `date`)
+- [ ] File naming follows `{yyyy-mm-dd}-{short-slug}.md` convention
+- [ ] All timestamps are YouTube deep links (not plain `[HH:MM:SS]`)
+- [ ] At least 3 improvement ideas included
+- [ ] Each improvement idea has a Status field
+
+If any check fails -> fix before reporting to user.
+
 - Report the file path to the user
 
 ## Error Messages (Use Exactly)
@@ -91,6 +112,7 @@ FOCUS_AREA: (optional, extracted from user message if present)
 - Missing URL: `"Usage: Provide a YouTube URL. Example: analyze this video https://youtube.com/watch?v=..."`
 - Transcript failure: `"Warning: Could not download transcript. Continuing with metadata-only analysis."`
 - Clone failure: `"Warning: Could not clone repository at {url}. Continuing with transcript-only analysis."`
+- Directory error: `"Error: REPORT_DIR does not exist: {path}"`
 
 ## Report
 
