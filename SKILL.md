@@ -1,6 +1,6 @@
 ---
 name: CraftPRD
-description: PRD lifecycle from vague idea to structured spec. USE WHEN design product OR write PRD OR review PRD OR structure PRD OR restructure PRD OR one-pager OR "too complex" OR complexity signals OR split PRD OR process findings OR fix findings OR go through findings.
+description: PRD lifecycle from vague idea to structured spec. USE WHEN design product OR write PRD OR review PRD OR structure PRD OR restructure PRD OR validate PRD OR check consistency OR verify PRD OR run checks OR one-pager OR "too complex" OR complexity signals OR split PRD OR process findings OR fix findings OR go through findings.
 ---
 
 # CraftPRD
@@ -21,21 +21,26 @@ A PRD naturally grows from a one-pager into a technical spec. At some point (~50
 | **Draft** | "write it up", "capture this", "one-pager" | `Workflows/Draft.md` |
 | **Deepen** | "flesh out", "add detail", "iterate on PRD" | `Workflows/Deepen.md` |
 | **Structure** | "structure this", "split PRD", "restructure", "too complex" | `Workflows/Structure.md` |
+| **Validate** | "validate PRD", "check consistency", "verify PRD", "run checks" | `Workflows/Validate.md` |
 | **Review** | "review PRD", "find issues", "consistency check" | `Workflows/Review.md` |
 | **ProcessFindings** | "process findings", "fix findings", "go through findings" | `Workflows/ProcessFindings.md` |
 
 ## Lifecycle Overview
 
 ```
-Explore → Draft → Deepen ──→ Structure → Review → ProcessFindings
- (idea)  (1-pager) (iterate)  ⚠️ threshold  (verify)   (fix)
-                      │                        │            │
-                      └── complexity signals ───┘            │
-                           trigger Structure                 │
-                                                  ┌─────────┘
+Explore → Draft → Deepen ──→ Structure → Validate → Review → ProcessFindings
+ (idea)  (1-pager) (iterate)  ⚠️ threshold (checks)  (verify)   (fix)
+                      │                        │          │          │
+                      └── complexity signals ───┘         │          │
+                           trigger Structure              │          │
+                                                  ┌──────┘──────────┘
                                                   ↓
                                            Review again (verify fixes)
 ```
+
+**Validate vs Review:**
+- Validate = deterministic checklist (fast, cheap, mechanical). Catches cross-reference errors, missing fields, broken imports.
+- Review = expert judgment (slow, thorough, creative). Catches design flaws, trade-off concerns, missing considerations.
 
 **Structure workflow adapts to PRD size:**
 - Growing PRD (~500 lines): proactive — "split these sections now before it grows"
@@ -83,9 +88,18 @@ User: "Review this PRD for inconsistencies"
 → Reports findings by severity
 ```
 
-**Example 5: Process review findings**
+**Example 5: Validate structured spec**
 ```
-User: "Let's go through the findings" (after a Review)
+User: "Validate this PRD" (after Structure)
+→ Invokes Validate workflow
+→ Discovers code files, classifies patterns
+→ Launches 3 parallel checker agents (cross-ref, completeness, types)
+→ Reports pass/fail per rule with specific findings
+```
+
+**Example 6: Process review findings**
+```
+User: "Let's go through the findings" (after a Review or Validate)
 → Invokes ProcessFindings workflow
 → Pipeline: presents finding N while committing fix for N-1
 → Medium-aware: proposes code fixes where prose was wrong medium
