@@ -1,11 +1,18 @@
 ---
 name: CreateSkill
-description: Create and validate Claude Code skills - invoke BEFORE exploring domain context. USE WHEN user says "skill" + intent (create, make, build, want, need, help me with) OR "workflow" + intent (create, make, add, new) OR "workflow for/to" OR "automate [task]" OR mentions skill structure, validate, audit.
+description: Create, validate, and optimize Claude Code skills. USE WHEN user says "skill" + intent (create, make, build, want, need, help me with) OR "workflow" + intent (create, make, add, new) OR "workflow for/to" OR "automate [task]" OR mentions skill structure, validate, audit OR optimize workflow OR improve workflow OR analyze session OR workflow delta.
 ---
 
 # CreateSkill
 
-Skill creation framework following PAI conventions with cherry-picked additions.
+Skill creation framework following PAI conventions with cherry-picked additions. Also includes workflow optimization via session analysis.
+
+## Workflow Routing
+
+| Workflow | Trigger | File |
+|----------|---------|------|
+| **AnalyzeWorkflow** | "optimize workflow", "analyze session", "workflow delta" | `Workflows/AnalyzeWorkflow.md` |
+| **ApplyAnalysis** | "apply improvements", "apply the changes" | `Workflows/ApplyAnalysis.md` |
 
 ## Core Specification
 
@@ -64,4 +71,21 @@ User: "Check if my skill is valid"
 → Verify TitleCase naming
 → Ensure USE WHEN in description
 → Ensure Examples section exists
+```
+
+**Example 3: Optimize a workflow from session data**
+```
+User: "Optimize the LearnFromVideo Analyze workflow based on session 822bc6ff"
+→ Invokes AnalyzeWorkflow workflow
+→ Reads the workflow, launches Opus subagent to analyze session JSONL
+→ Presents delta analysis: planned vs actual, pain points, proposals
+→ User approves → invokes ApplyAnalysis to edit the workflow
+```
+
+**Example 4: Analyze multiple sessions for patterns**
+```
+User: "I've used the CraftPRD Review workflow in sessions abc and def, optimize it"
+→ Invokes AnalyzeWorkflow with comma-separated session IDs
+→ Finds recurring patterns across runs (repeated issues vs one-offs)
+→ Prioritizes improvements that fix repeated pain points
 ```
