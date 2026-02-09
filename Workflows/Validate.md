@@ -241,6 +241,7 @@ Validators: <N> replicas launched, <N> returned results
 | TypeConsist | 1. No Inline Literals | PASS/FAIL(N)/SKIP |
 | TypeConsist | 2. Branded Types | PASS/FAIL(N)/SKIP |
 | TypeConsist | 3. Schema Alignment | PASS/FAIL(N)/SKIP |
+| TypeConsist | 4. Cross-File Field Types | PASS/FAIL(N)/SKIP |
 
 Rules: <passed> passed, <failed> failed, <skipped> skipped
 

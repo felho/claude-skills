@@ -51,6 +51,22 @@ Check each rule in order. For each rule, report PASS, FAIL (with findings), or S
 **Report FAIL if:** A schema column type contradicts its TypeScript counterpart.
 **SKIP if:** No database schema file found.
 
+### Rule 4: Cross-File Field Type Consistency
+
+**What to check:** When the same logical field name appears in exported interfaces across different `.ts` files, the types must be compatible. This catches nullability mismatches, optionality drift, and array-vs-null inconsistencies between the canonical domain type and its consumers (events, DTOs, commands).
+**How to check:**
+1. From the canonical types file (usually `types.ts`), collect all exported interface fields with their types. Build a **canonical field map**: `{ fieldName → { type, interface, file } }`.
+2. In every other code file, find all exported interfaces and their fields.
+3. For each field in a consumer interface that shares a name with a canonical field, compare the types:
+   - **Nullability mismatch:** canonical is `T | null` but consumer is `T` (dropped nullability), or vice versa → FAIL
+   - **Array vs null:** canonical is `T[]` but consumer uses `T[] | null`, or vice versa → FAIL
+   - **Optionality mismatch:** canonical is required but consumer is optional (`?:`), or vice versa → FAIL
+   - **Widened/narrowed type:** canonical is `T | null` but consumer is `T | null | undefined` → FAIL (unless consumer is explicitly optional with `?:`)
+4. When a field name is common/generic (e.g., `id`, `status`, `type`, `name`), only compare if the consumer interface has a clear relationship to the canonical type (e.g., same entity prefix like `itemId`, or the interface name references the entity like `ItemUpdatedPayload`).
+5. Pay special attention to event payload interfaces — they typically mirror domain types but are defined in a separate file and can drift silently.
+**Report FAIL if:** A field with the same name in a consumer interface has an incompatible type compared to the canonical definition.
+**SKIP if:** Only one TypeScript file exists (no cross-file comparison possible).
+
 ## Instructions
 
 - **Read ALL files in FILE_LIST before producing any findings.** You need to see all type definitions to know what the canonical types are.
@@ -74,9 +90,9 @@ For each failed rule, report individual findings:
 ```
 
 Severity guide:
-- **Critical:** Type mismatch between schema and TypeScript that would cause runtime data corruption (e.g., INTEGER column for a boolean field).
-- **Important:** Inline literal union where a named type exists (future changes to the named type won't propagate to the inline copy).
-- **Minor:** Primitive type used where branded type exists but the risk of confusion is low (e.g., internal helper, not a public interface).
+- **Critical:** Type mismatch that would cause runtime data corruption or crash (e.g., INTEGER column for a boolean field, non-nullable field receiving null from a nullable source).
+- **Important:** Inline literal union where a named type exists, or cross-file nullability mismatch on a field that flows through the system (e.g., event payload drops `| null` from a domain field).
+- **Minor:** Primitive type used where branded type exists but the risk of confusion is low (e.g., internal helper, not a public interface). Optionality mismatches in non-critical paths.
 
 ## Output Format
 
@@ -90,6 +106,7 @@ Start with a summary table, then list detailed findings:
 | 1. No Inline Literals | PASS/FAIL/SKIP | N |
 | 2. Branded Type Usage | PASS/FAIL/SKIP | N |
 | 3. Schema-Type Alignment | PASS/FAIL/SKIP | N |
+| 4. Cross-File Field Types | PASS/FAIL/SKIP | N |
 
 ## Findings
 
