@@ -1,6 +1,6 @@
 ---
 name: WritePrompt
-description: Create, modify, and review agentic prompts/slash commands. USE WHEN create prompt OR new command OR slash command OR modify prompt OR update workflow OR improve prompt OR edit prompt OR prompt structure OR workflow prompt OR skill workflow OR add workflow to skill OR workflow file OR write workflow OR review prompt. Guides through 7 prompt levels with proper sections.
+description: Create, modify, review, and harden agentic prompts/slash commands. USE WHEN create prompt OR new command OR slash command OR modify prompt OR update workflow OR improve prompt OR edit prompt OR prompt structure OR workflow prompt OR skill workflow OR add workflow to skill OR workflow file OR write workflow OR review prompt OR harden prompt OR add validation OR add hooks OR self-validation OR validate agent OR add self-validation. Guides through 7 prompt levels with proper sections.
 ---
 
 # WritePrompt
@@ -19,6 +19,7 @@ Every prompt should have the right level of complexity for its use case — no m
 |----------|---------|------|
 | **Write** | "create prompt", "new command", "modify prompt", "update workflow", "edit prompt", "improve prompt" | `Workflows/Write.md` |
 | **Review** | "review this prompt", "check prompt quality", "audit prompt" | `Workflows/Review.md` |
+| **Harden** | "harden prompt", "add validation", "add hooks", "self-validation", "add self-validation" | `Workflows/Harden.md` |
 
 ## The 7 Prompt Levels
 
@@ -88,7 +89,18 @@ User: "Create a command that processes multiple files in parallel"
 → Adds proper agent configuration variables
 ```
 
+**Example 5: Add self-validation to existing agent**
+```
+User: "Harden the normalize-csv command with validation hooks"
+→ Invokes Harden workflow
+→ Reads the command, identifies CSV output + Edit/Write tool usage
+→ Recommends Stop hook with csv-validator.py
+→ Writes validator script, adds hooks YAML to frontmatter
+→ Verifies the validator runs without errors
+```
+
 ## References
 
 - [PromptLevels](references/PromptLevels.md) — Detailed breakdown of all 7 levels with examples
 - [PromptSections](references/PromptSections.md) — Complete section reference with usage guidelines
+- [SelfValidationHooks](references/SelfValidationHooks.md) — Hook types, JSON protocol, validator architecture, design patterns

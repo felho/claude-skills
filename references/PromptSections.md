@@ -30,6 +30,26 @@ model: sonnet
 | `argument-hint` | Guide for user input | `<required> [optional]` |
 | `allowed-tools` | Restrict available tools | `Read, Write, Bash` |
 | `model` | Override default model | `sonnet`, `opus` |
+| `hooks` | Self-validation hooks | See below |
+
+**Hooks (Self-Validation):**
+
+Embed validation logic directly in the prompt's frontmatter. Each hook runs a validator script that returns `{}` (pass) or `{"decision": "block", "reason": "..."}` (fail + self-correct).
+
+```yaml
+hooks:
+  PostToolUse:
+    - matcher: "Edit|Write"
+      hooks:
+        - type: command
+          command: "uv run \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/validators/my-validator.py"
+  Stop:
+    - hooks:
+        - type: command
+          command: "uv run \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/validators/final-check.py"
+```
+
+> **Full reference:** [SelfValidationHooks.md](SelfValidationHooks.md) — hook types, JSON protocol, validator architecture, design patterns.
 
 ---
 
