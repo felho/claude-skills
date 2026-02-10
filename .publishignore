@@ -1,0 +1,2 @@
+# False positives: example.com emails in documentation
+ALLOW:email:example.com
