@@ -7,6 +7,8 @@ hooks:
     - hooks:
         - type: command
           command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/cross-step-consistency-validator.py --mode readiness"
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/check-confidence-validator.py"
 ---
 
 # Execute Step Implementation

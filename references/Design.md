@@ -656,6 +656,24 @@ prepare packet → check → findings? → fix packet → check → ... → clea
 
 **Why a separate agent for normal mode?** The prepare workflow already consumed context generating the packet. Running check in the same context risks "context poisoning" — the model may not catch gaps because it just wrote the content and is biased toward believing it's complete. A fresh agent reads the packet with no prior bias.
 
+### Check Confidence Metadata
+
+After auto-check completes, the packet frontmatter records convergence outcome:
+
+```yaml
+check-confidence: converged   # converged | max-iterations | unchecked
+check-iterations: 4           # positive integer, absent when unchecked
+```
+
+**Values:**
+- `converged` — zero findings reached before 10 iterations. Quality verified.
+- `max-iterations` — 10 iterations without converging. Quality uncertain.
+- `unchecked` — no auto-check ran. Default for new packets; implied for old packets without the field.
+
+**Execute gate:** A Stop hook (`check-confidence-validator.py`) blocks execution when `check-confidence: max-iterations`, recommending manual review. Escape hatch: remove the field from frontmatter. Backward-compatible: `unchecked` and absent both pass silently.
+
+**Validation:** The packet structure validator enforces field consistency — valid enum values, `check-iterations` presence/absence matches confidence level, no orphaned `check-iterations` without `check-confidence`.
+
 ### Staleness Handling
 
 Prepared packets are snapshots of the plan + design doc at generation time. If either source document changes after `--ahead` runs, packets may be outdated.

@@ -154,7 +154,11 @@ Step title: {step heading}
    b. Compare against the packet — find ANY missing details
    c. If findings exist → edit the packet to add missing information, then repeat from (a)
    d. If zero findings OR 10 iterations reached → stop
-   e. Report: number of check iterations and whether converged (clean) or not
+   e. Update the packet's YAML frontmatter confidence fields:
+      - If converged (zero findings before 10 iterations): set `check-confidence: converged` and `check-iterations: N`
+      - If did not converge (10 iterations reached): set `check-confidence: max-iterations` and `check-iterations: 10`
+      - Remove `check-confidence: unchecked` if present
+   f. Report: number of check iterations and whether converged (clean) or not
 
 Report back: step ID, packet path, success/failure, check iterations (if auto-check).
 ```
@@ -307,6 +311,7 @@ step: {phase-id}/{step-id}
 plan: {PLAN_PATH}
 design-doc: {DESIGN_DOC_PATH}
 created: {ISO-8601 timestamp}
+check-confidence: unchecked
 ---
 
 # Step: {phase-id}/{step-id}
@@ -397,6 +402,10 @@ Run a check loop until the packet is clean or you reach 10 iterations:
    - Do NOT remove existing content
    - Increment iteration counter, go to step 1
 5. If zero findings OR iteration counter >= 10 → stop
+6. Update the packet's YAML frontmatter confidence fields:
+   - If converged (zero findings before 10 iterations): set `check-confidence: converged` and `check-iterations: N`
+   - If did not converge (10 iterations reached): set `check-confidence: max-iterations` and `check-iterations: 10`
+   - Remove `check-confidence: unchecked` if present
 
 Report: "Check converged after N iterations" or "Check did not converge after 10 iterations — review manually"
 ```
