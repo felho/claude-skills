@@ -12,4 +12,5 @@ Copy any skill directory into your `~/.claude/skills/` folder to use it.
 
 | Skill | Description |
 |-------|-------------|
+| [WritePrompt](WritePrompt/) | Create, modify, review, and harden agentic prompts/slash commands. |
 | [UseGit](UseGit/) | Git practices for this project. |
