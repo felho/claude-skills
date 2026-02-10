@@ -150,11 +150,18 @@ The validators address the deterministic layer. Four concerns remain that need d
 
 **Possible improvement:** A double-check schema where two independent agents check the same packet and findings are compared. Divergence beyond a threshold triggers human review. This trades cost for reliability.
 
-### 5.3 Cross-Step Consistency
+### 5.3 Cross-Step Consistency ✅ SOLVED
+
+**Solved:** 2026-02-10
 
 **Problem:** Validators check one packet against one plan step. They cannot detect inconsistencies across packets (e.g., Step B references a type defined in Step A's packet, but Step A's packet defines it differently).
 
-**Possible approach:** A cross-step validator that runs at `--ahead` completion, reading all generated packets and checking cross-references. This is a larger undertaking.
+**Solution:** `cross-step-consistency-validator.py` — a single script with two modes:
+
+- **Structure mode** (Stop hook on Prepare/Check): Discovers ALL sibling packets via plan path, builds full dependency graph, runs 7 checks: dependency existence, circular deps, frontmatter consistency, step ID validity, orphan detection, status constraints (at most one in-progress, deps done before execution), duplicate packets.
+- **Readiness mode** (Stop hook on Execute, `--mode readiness`): Lightweight check that target packet's dependencies are all done in the plan, plus multiple-in-progress guard.
+
+Dependency parsing handles real-world formats: `Step N.M (slug)` parenthesized and `Step N.M: slug` colon format. Tested against 58 wbc-monthly-close packets (clean pass on revolut-support, correctly detected real circular dep in personal-finance).
 
 ### 5.4 Auto-Check Convergence Failure
 
