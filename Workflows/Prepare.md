@@ -19,6 +19,8 @@ hooks:
     - hooks:
         - type: command
           command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/packet-coverage-validator.py"
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/cross-step-consistency-validator.py"
 ---
 
 # Prepare Step Packet

@@ -2,6 +2,11 @@
 description: Run implementation based on step packet
 argument-hint: <packet>
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/cross-step-consistency-validator.py --mode readiness"
 ---
 
 # Execute Step Implementation
