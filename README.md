@@ -12,6 +12,7 @@ Copy any skill directory into your `~/.claude/skills/` folder to use it.
 
 | Skill | Description |
 |-------|-------------|
+| [ManageImpStep](ManageImpStep/) | Drive multi-step plan implementation with focused context packets. |
 | [LearnFromVideo](LearnFromVideo/) | Extract insights and patterns from YouTube coding videos and their GitHub repos. |
 | [CreateSkill](CreateSkill/) | Create, validate, and optimize Claude Code skills. |
 | [CraftPRD](CraftPRD/) | PRD lifecycle from vague idea to structured spec. |
