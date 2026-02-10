@@ -10,9 +10,9 @@ The ManageImpStep skill has a quality loop: Prepare creates a packet, Check veri
 
 The trust question arose from a specific incident:
 
-**Session A** (`b1aeab7e`): Ran `Prepare --auto-check` for the Bob V1 PRD Review Pipeline's first step (`foundation/monorepo-setup`). The auto-check agent iterated 4 times and converged with zero findings.
+**Session A** (`b1aeab7e-362d-41e1-be92-13bd38b974dc`): Ran `Prepare --auto-check` for the Bob V1 PRD Review Pipeline's first step (`foundation/monorepo-setup`). The auto-check agent iterated 4 times and converged with zero findings.
 
-**Session B** (`3e80b01d`): Ran manual `/ManageImpStep check` on the same packet. The check agent reported 10 "Potential Issues Found."
+**Session B** (`3e80b01d-3aa5-4fc7-a51a-4bb5024e9ffb`): Ran manual `/ManageImpStep check` on the same packet. The check agent reported 10 "Potential Issues Found."
 
 This raised the question: **Can we trust auto-check convergence?** If a manual check immediately finds 10 issues after auto-check says "clean," the system cannot be scaled to orchestrated execution.
 
