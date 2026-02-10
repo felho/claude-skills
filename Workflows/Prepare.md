@@ -5,6 +5,11 @@ allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Task
 # Note: Write/Edit are ONLY for the packet .md file, never for implementation files
 # Note: Task is for parallel prepare-ahead agents and auto-check loop agents
 hooks:
+  PreToolUse:
+    - matcher: "Read"
+      hooks:
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/design-doc-depth-guard.py"
   PostToolUse:
     - matcher: "Write|Edit"
       hooks:
@@ -234,6 +239,29 @@ From the plan, extract for the selected step:
 ### 5. Gather Context from Design Document
 
 Read the design document thoroughly. Include ALL sections relevant to this step:
+
+<reading-rules>
+**Do NOT use the `limit` parameter** when reading source documents. The Read tool's default behavior reads the full file — that is what you want.
+
+**Anti-pattern (BLOCKED by hook):**
+```
+Read(file_path: "design.md", limit: 200)  ← WRONG: skips 90%+ of the document
+```
+
+**Correct pattern:**
+```
+Read(file_path: "design.md")              ← RIGHT: reads full file
+```
+
+**For very large files (>2000 lines):** use sequential offset reads to cover the entire file:
+```
+Read(file_path: "design.md")                        ← first 2000 lines
+Read(file_path: "design.md", offset: 2000)           ← next chunk
+Read(file_path: "design.md", offset: 4000)           ← and so on
+```
+
+**Self-check after reading:** Can you recall content from the LAST section of the document? If not, you didn't read far enough.
+</reading-rules>
 
 <gather-context>
 - Sections directly referenced in the step definition

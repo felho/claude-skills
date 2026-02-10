@@ -4,6 +4,11 @@ argument-hint: <packet>
 allowed-tools: Read, Edit, Glob
 # Note: Edit is ONLY for updating the packet .md file, never for implementation files
 hooks:
+  PreToolUse:
+    - matcher: "Read"
+      hooks:
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/design-doc-depth-guard.py"
   PostToolUse:
     - matcher: "Edit"
       hooks:
@@ -82,13 +87,34 @@ If any required field is missing → STOP with "Invalid packet" error
 
 ### 4. Read Source Documents Thoroughly
 
-Read the ENTIRE design document at `DESIGN_DOC_PATH`:
+Read the design document at `DESIGN_DOC_PATH`:
 
 - If file not found → STOP with "Design document not found" error
 
-Read the ENTIRE plan file at `PLAN_PATH`.
+Read the plan file at `PLAN_PATH`.
 
-**Take your time. Read carefully. Don't skim.**
+<reading-rules>
+**Do NOT use the `limit` parameter** when reading source documents. The Read tool's default behavior reads the full file — that is what you want.
+
+**Anti-pattern (BLOCKED by hook):**
+```
+Read(file_path: "design.md", limit: 200)  ← WRONG: skips 90%+ of the document
+```
+
+**Correct pattern:**
+```
+Read(file_path: "design.md")              ← RIGHT: reads full file
+```
+
+**For very large files (>2000 lines):** use sequential offset reads to cover the entire file:
+```
+Read(file_path: "design.md")                        ← first 2000 lines
+Read(file_path: "design.md", offset: 2000)           ← next chunk
+Read(file_path: "design.md", offset: 4000)           ← and so on
+```
+
+**Self-check after reading:** Can you recall content from the LAST section of the document? If not, you didn't read far enough.
+</reading-rules>
 
 ### 5. Analyze Packet for Missing Information
 
