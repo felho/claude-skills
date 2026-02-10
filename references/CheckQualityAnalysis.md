@@ -163,17 +163,22 @@ The validators address the deterministic layer. Four concerns remain that need d
 
 Dependency parsing handles real-world formats: `Step N.M (slug)` parenthesized and `Step N.M: slug` colon format. Tested against 58 wbc-monthly-close packets (clean pass on revolut-support, correctly detected real circular dep in personal-finance).
 
-### 5.4 Auto-Check Convergence Failure
+### 5.4 Auto-Check Convergence Failure ✅ SOLVED
+
+**Solved:** 2026-02-10
 
 **Problem:** If auto-check runs 10 iterations without converging, the packet is still marked `prepared`. There is no signal to the orchestrator that quality is uncertain.
 
-**Possible approach:** The Stop hook could check iteration count from the agent's output or from a metadata file. If iterations >= threshold, block with a warning requiring human review.
-
-**Alternative:** A confidence metadata field in the packet frontmatter:
+**Solution:** Confidence metadata in packet frontmatter:
 ```yaml
 check-confidence: converged  # converged | max-iterations | unchecked
 check-iterations: 4
 ```
+
+Two components:
+- **Prepare workflow** writes confidence fields after auto-check completes (both normal and ahead mode agents)
+- **`check-confidence-validator.py`** — Stop hook on Execute that blocks when `check-confidence: max-iterations`, recommending manual review. Escape hatch: remove the field. Backward-compatible: `unchecked` and absent pass silently.
+- **`packet-structure-validator.py`** extended with Rule 1b to enforce field consistency (valid enum, iterations presence/absence).
 
 ## 6. Lessons Learned
 
