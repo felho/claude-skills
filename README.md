@@ -12,6 +12,7 @@ Copy any skill directory into your `~/.claude/skills/` folder to use it.
 
 | Skill | Description |
 |-------|-------------|
+| [LearnFromVideo](LearnFromVideo/) | Extract insights and patterns from YouTube coding videos and their GitHub repos. |
 | [CreateSkill](CreateSkill/) | Create, validate, and optimize Claude Code skills. |
 | [CraftPRD](CraftPRD/) | PRD lifecycle from vague idea to structured spec. |
 | [WritePrompt](WritePrompt/) | Create, modify, review, and harden agentic prompts/slash commands. |
