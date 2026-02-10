@@ -3,6 +3,16 @@ description: Verify packet completeness against source documents, improve if nee
 argument-hint: <packet>
 allowed-tools: Read, Edit, Glob
 # Note: Edit is ONLY for updating the packet .md file, never for implementation files
+hooks:
+  PostToolUse:
+    - matcher: "Edit"
+      hooks:
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/packet-structure-validator.py"
+  Stop:
+    - hooks:
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/packet-coverage-validator.py"
 ---
 
 # Check Step Packet

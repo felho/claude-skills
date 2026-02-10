@@ -4,6 +4,16 @@ argument-hint: <plan> <design-doc> [phase-id/step-id] [--ahead N] [--auto-check]
 allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Task
 # Note: Write/Edit are ONLY for the packet .md file, never for implementation files
 # Note: Task is for parallel prepare-ahead agents and auto-check loop agents
+hooks:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      hooks:
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/packet-structure-validator.py"
+  Stop:
+    - hooks:
+        - type: command
+          command: "uv run $HOME/.claude/hooks/validators/ManageImpStep/packet-coverage-validator.py"
 ---
 
 # Prepare Step Packet
