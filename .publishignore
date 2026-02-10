@@ -1,0 +1,5 @@
+# UseGit publish ignore rules
+# Example paths in documentation are not real secrets
+ALLOW:personal-path:/Users/felho/dev in references/GitCommands.md
+# Same paths appear in git history diffs
+ALLOW:personal-path:/Users/felho/ in (git history)
