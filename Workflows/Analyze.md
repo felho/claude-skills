@@ -7,8 +7,8 @@ Execute the `Workflow` section and generate a report following the `Report` form
 ## Variables
 
 VIDEO_URL: $ARGUMENTS
-REPORT_DIR: /Users/felho/.claude/MEMORY/LEARNINGS/LearningsFromVideos
-REPOS_DIR: /Users/felho/dev/learnings-from-videos
+REPORT_DIR: ~/.claude/MEMORY/LEARNINGS/LearningsFromVideos
+REPOS_DIR: ~/dev/learnings-from-videos
 FOCUS_AREA: (optional, extracted from user message if present)
 
 ## Instructions
