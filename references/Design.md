@@ -661,18 +661,23 @@ prepare packet → check → findings? → fix packet → check → ... → clea
 After auto-check completes, the packet frontmatter records convergence outcome:
 
 ```yaml
-check-confidence: converged   # converged | max-iterations | unchecked
-check-iterations: 4           # positive integer, absent when unchecked
+check-confidence: double-checked   # double-checked | max-double-checks | converged | max-iterations | unchecked
+check-iterations: 7                # positive integer, cumulative across all cycles; absent when unchecked
+double-check-restarts: 1           # 0-2, only present for double-checked / max-double-checks
 ```
 
 **Values:**
-- `converged` — zero findings reached before 10 iterations. Quality verified.
-- `max-iterations` — 10 iterations without converging. Quality uncertain.
+- `double-checked` — all 7 semantic dimensions PASS after structured double-check. Highest confidence.
+- `max-double-checks` — 3 double-check cycles exhausted without full pass. Packet improved but may have gaps.
+- `converged` — freeform check loop reached zero findings (Phase A only, no double-check ran). Quality verified.
+- `max-iterations` — 10 iterations without converging in freeform check. Quality uncertain.
 - `unchecked` — no auto-check ran. Default for new packets; implied for old packets without the field.
 
-**Execute gate:** A Stop hook (`check-confidence-validator.py`) blocks execution when `check-confidence: max-iterations`, recommending manual review. Escape hatch: remove the field from frontmatter. Backward-compatible: `unchecked` and absent both pass silently.
+**Double-check cycle:** When `--auto-check` is used, the Prepare workflow runs up to 3 cycles. Each cycle = Phase A (freeform check loop, fresh context) + Phase B (structured 7-dimension double-check, fresh context). If Phase B finds WEAK/MISSING dimensions, it fixes the packet and restarts. The 7 dimensions are: Technical Sufficiency, Error Handling Coverage, Edge Cases & Validation, Testability, Dependency Clarity, Acceptance Criteria Clarity, Implementation Completeness.
 
-**Validation:** The packet structure validator enforces field consistency — valid enum values, `check-iterations` presence/absence matches confidence level, no orphaned `check-iterations` without `check-confidence`.
+**Execute gate:** A Stop hook (`check-confidence-validator.py`) blocks execution when `check-confidence: max-iterations`, recommending manual review. `max-double-checks` logs a WARNING but passes (check loop converged each cycle, so the packet was iteratively improved). Escape hatch: remove the field from frontmatter. Backward-compatible: `unchecked` and absent both pass silently.
+
+**Validation:** The packet structure validator enforces field consistency — valid enum values, `check-iterations` presence/absence matches confidence level, `double-check-restarts` required for `double-checked`/`max-double-checks` (range 0-2) and forbidden otherwise, no orphaned fields.
 
 ### Staleness Handling
 
