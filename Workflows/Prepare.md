@@ -149,18 +149,40 @@ Step title: {step heading}
 7. Do NOT write code or implementation files — ONLY the packet .md file
 
 {If AUTO_CHECK is true, add:}
-8. After writing the packet, run a check loop:
+8. After writing the packet, run a double-check cycle (max 3 cycles, i.e., max 2 restarts):
+
+   For each CYCLE (1 to 3):
+
+   Phase A — Freeform Check Loop:
    a. Re-read the plan and design doc
    b. Compare against the packet — find ANY missing details
    c. If findings exist → edit the packet to add missing information, then repeat from (a)
-   d. If zero findings OR 10 iterations reached → stop
-   e. Update the packet's YAML frontmatter confidence fields:
-      - If converged (zero findings before 10 iterations): set `check-confidence: converged` and `check-iterations: N`
-      - If did not converge (10 iterations reached): set `check-confidence: max-iterations` and `check-iterations: 10`
-      - Remove `check-confidence: unchecked` if present
-   f. Report: number of check iterations and whether converged (clean) or not
+   d. If zero findings OR 10 iterations reached → Phase A done
+   e. If 10 iterations reached without converging → STOP (set check-confidence: max-iterations)
 
-Report back: step ID, packet path, success/failure, check iterations (if auto-check).
+   Phase B — Structured Double-Check (7 dimensions):
+   Evaluate the packet against these 7 dimensions. For each, quote evidence from the packet and score PASS/WEAK/MISSING:
+
+   1. Technical Sufficiency — types, interfaces, configs, file paths all specified?
+   2. Error Handling Coverage — all error cases with messages and recovery paths?
+   3. Edge Cases & Validation — boundary conditions, validation rules, concurrency?
+   4. Testability — test cases concrete enough to write actual test code?
+   5. Dependency Clarity — inter-step deps and external deps explicit?
+   6. Acceptance Criteria Clarity — each AC specific, measurable, binary (pass/fail)?
+   7. Implementation Completeness — could implementer start with ONLY this packet?
+
+   If ALL 7 PASS → set check-confidence: double-checked, record iterations and restarts → DONE
+   If ANY WEAK/MISSING → fix the packet, then RESTART next cycle (Phase A re-verifies)
+
+   If 3 cycles exhausted → set check-confidence: max-double-checks
+
+9. Update the packet's YAML frontmatter:
+   - check-confidence: double-checked | max-iterations | max-double-checks
+   - check-iterations: total iterations across all Phase A runs
+   - double-check-restarts: 0-2 (only for double-checked / max-double-checks)
+   - Remove check-confidence: unchecked if present
+
+Report back: step ID, packet path, success/failure, check result (confidence, iterations, restarts).
 ```
 
 Launch ALL agents in a single message (parallel Task tool calls).
@@ -181,8 +203,8 @@ For each failed agent:
 
 | Step | Packet | Check |
 |------|--------|-------|
-| {step-id-1} | {packet-path-1} | {converged after M iterations / skipped / failed} |
-| {step-id-2} | {packet-path-2} | {converged after M iterations / skipped / failed} |
+| {step-id-1} | {packet-path-1} | {double-checked (N iters, R restarts) / max-double-checks / max-iterations / skipped / failed} |
+| {step-id-2} | {packet-path-2} | {double-checked (N iters, R restarts) / max-double-checks / max-iterations / skipped / failed} |
 ...
 
 {If any failures:}
@@ -367,50 +389,100 @@ Before reporting, verify you followed the rules:
 
 If any check fails → you made a mistake. Undo the implementation work and focus only on the packet.
 
-### 10A. Auto-Check Loop (when `--auto-check` is set, normal mode only)
+### 10A. Auto-Check with Double-Check Cycle (when `--auto-check` is set, normal mode only)
 
 > If `AUTO_CHECK` is false, skip to Step 11.
 
-After packet creation, launch a Task agent (`subagent_type: general-purpose`) for the check loop:
+After packet creation, run a double-check cycle. A "cycle" = Phase A (freeform check loop) + Phase B (structured double-check). If the double-check finds issues, restart with a new cycle (max 3 cycles total, i.e., max 2 restarts).
+
+**Track these variables across cycles:**
+- `total-iterations`: cumulative check iterations across all Phase A runs (read from packet frontmatter after each Phase A)
+- `double-check-restarts`: how many times Phase B triggered a restart (0, 1, or 2)
 
 ```
-You are checking and improving a step packet for completeness.
+For CYCLE = 1 to 3:
 
-## Source Documents
+  ── Phase A: Check Loop Agent (fresh context) ──
 
-Packet: {PACKET_PATH}
-Plan file: {PLAN_PATH}
-Design document: {DESIGN_DOC_PATH}
+  Launch Task agent (subagent_type: general-purpose):
 
-## Instructions
+    You are checking and improving a step packet for completeness.
 
-Run a check loop until the packet is clean or you reach 10 iterations:
+    ## Source Documents
 
-1. Read the packet, plan, and design document thoroughly
-2. Compare the packet against source documents — find ANY missing details
-   Use this checklist:
-   - All technical specifications from design doc relevant to this step
-   - Error handling requirements and exact error messages
-   - Validation rules, edge cases, type definitions
-   - Test scenarios, acceptance criteria completeness
-   - Cross-references resolved to actual content
-   - Implementation gotchas and warnings
-3. Stricter threshold: ANY finding, no matter how small, counts as a gap
-4. If findings exist:
-   - Edit the packet file to add missing information
-   - Do NOT duplicate existing content
-   - Do NOT remove existing content
-   - Increment iteration counter, go to step 1
-5. If zero findings OR iteration counter >= 10 → stop
-6. Update the packet's YAML frontmatter confidence fields:
-   - If converged (zero findings before 10 iterations): set `check-confidence: converged` and `check-iterations: N`
-   - If did not converge (10 iterations reached): set `check-confidence: max-iterations` and `check-iterations: 10`
-   - Remove `check-confidence: unchecked` if present
+    Packet: {PACKET_PATH}
+    Plan file: {PLAN_PATH}
+    Design document: {DESIGN_DOC_PATH}
 
-Report: "Check converged after N iterations" or "Check did not converge after 10 iterations — review manually"
+    ## Instructions
+
+    Run a check loop until the packet is clean or you reach 10 iterations:
+
+    1. Read the packet, plan, and design document thoroughly
+    2. Compare the packet against source documents — find ANY missing details
+       Use this checklist:
+       - All technical specifications from design doc relevant to this step
+       - Error handling requirements and exact error messages
+       - Validation rules, edge cases, type definitions
+       - Test scenarios, acceptance criteria completeness
+       - Cross-references resolved to actual content
+       - Implementation gotchas and warnings
+    3. Stricter threshold: ANY finding, no matter how small, counts as a gap
+    4. If findings exist:
+       - Edit the packet file to add missing information
+       - Do NOT duplicate existing content
+       - Do NOT remove existing content
+       - Increment iteration counter, go to step 1
+    5. If zero findings OR iteration counter >= 10 → stop
+    6. Update the packet's YAML frontmatter:
+       - If converged (zero findings before 10 iterations): set check-confidence: converged and check-iterations: N
+       - If did not converge (10 iterations reached): set check-confidence: max-iterations and check-iterations: 10
+       - Remove check-confidence: unchecked if present
+
+    Report: "Check converged after N iterations" or "Check did not converge after 10 iterations"
+
+  Wait for the Phase A agent to complete.
+
+  After Phase A completes, read packet frontmatter to get check-confidence and check-iterations.
+  Add this cycle's iterations to total-iterations.
+
+  If check-confidence is max-iterations → STOP the cycle loop.
+    Set final confidence: max-iterations, check-iterations: total-iterations.
+    Skip Phase B entirely. (Report will recommend manual review.)
+
+  ── Phase B: Double-Check Agent (fresh context, structured checklist) ──
+
+  Launch Task agent (subagent_type: general-purpose):
+
+    Read the prompt from: ~/.claude/skills/ManageImpStep/references/DoubleCheckPrompt.md
+    Replace placeholders:
+      {PACKET_PATH} = {actual packet path}
+      {PLAN_PATH} = {actual plan path}
+      {DESIGN_DOC_PATH} = {actual design doc path}
+    Follow all instructions in the prompt file.
+
+  Wait for the Phase B agent to complete.
+
+  Parse Phase B result:
+    If ALL 7 dimensions PASS → cycle is complete, packet is verified.
+      Set check-confidence: double-checked
+      Set check-iterations: total-iterations
+      Set double-check-restarts: {number of restarts so far}
+      STOP the cycle loop.
+
+    If ANY dimension was WEAK or MISSING → the agent already fixed the packet.
+      Increment double-check-restarts.
+      RESTART: continue to next cycle (Phase A must re-verify consistency).
+
+If 3 cycles exhausted (double-check never fully passed):
+  Set check-confidence: max-double-checks
+  Set check-iterations: total-iterations
+  Set double-check-restarts: 2
 ```
 
-Wait for the agent to complete and include the check result in the report.
+After the cycle completes, update the packet frontmatter with the final confidence values.
+
+Include the cycle result in the report (see Step 11).
 
 ### 11. Report Result
 
@@ -421,7 +493,11 @@ Output:
 
 Title: {step heading}
 Packet: {packet-path}
-{If auto-check ran: "Check: converged after N iterations" or "Check: did not converge (10 iterations)"}
+{If auto-check ran, show one of:}
+  Check: double-checked ✅ (N total iterations, R restarts)
+  Check: max-double-checks ⚠️ (N total iterations, 2 restarts — consider manual review)
+  Check: max-iterations ❌ (10 iterations, did not converge — manual review needed)
+  Check: converged (N iterations)  ← only if cycle ended at Phase A without Phase B
 
 Next: Run `/ManageImpStep execute {packet-path}` to implement.
 ```
@@ -432,7 +508,7 @@ After successful preparation, always include:
 
 1. Confirmation message with step ID
 2. Full path to the created packet
-3. Auto-check result (if `--auto-check` was used)
+3. Auto-check result with confidence, iterations, and restart count (if `--auto-check` was used)
 4. Suggested next command
 
 **Remember:** You prepared a PACKET (documentation). You did NOT implement anything. Implementation is the user's next step via `/ManageImpStep execute`.
@@ -441,9 +517,19 @@ After successful preparation, always include:
 
 After successful preparation, auto-suggest the next command for the user:
 
-If `--auto-check` was used (packet already checked):
+If `--auto-check` was used and confidence is `double-checked`:
 ```
 /ManageImpStep execute {PACKET_PATH} -n
+```
+
+If `--auto-check` was used and confidence is `max-double-checks`:
+```
+/ManageImpStep check {PACKET_PATH} -n
+```
+
+If `--auto-check` was used and confidence is `max-iterations`:
+```
+/ManageImpStep check {PACKET_PATH} -n
 ```
 
 If `--auto-check` was NOT used:
