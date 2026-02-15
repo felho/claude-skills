@@ -146,6 +146,16 @@ If no valid steps found → STOP with "No steps found" error
 - If all steps are done → STOP with message: "All steps are complete."
 </step-selection>
 
+### 3A. Announce Selected Step (Early Output)
+
+**Immediately after identifying the step**, output a message to the user so they know what's happening:
+
+```
+The next step is `{phase-id}/{step-id}`. Let me read the design doc for relevant context.
+```
+
+This MUST be output **before** reading the design doc (Step 5). The user should see which step was selected while the heavy reading is in progress.
+
 ### 4. Extract Step Content
 
 From the plan, extract for the selected step:
