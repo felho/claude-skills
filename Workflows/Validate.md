@@ -170,6 +170,8 @@ This is the most important check. For EACH numbered criterion in the "Acceptance
 5. Check ALL sections of the packet — not just "Acceptance Criteria" but also "Step Definition", "Test Cases", "Review Step Completion", "Implementation Notes", and any other sections that describe expected behavior
 
 **Be thorough:** Read the actual source code. Don't just trust that tests cover everything — verify the implementation logic directly.
+
+**Implementation session trace:** If you need detailed context about _why_ something was implemented a certain way (e.g., an unexpected pattern, a suspicious decision, or a missing piece), check the packet frontmatter for `execute-session`. If present, use the SearchSession skill or a Task agent to search that session's `.jsonl` file for relevant context. This is especially useful when a criterion is ambiguous and you want to understand the implementer's reasoning.
 </validation-checks>
 
 ---

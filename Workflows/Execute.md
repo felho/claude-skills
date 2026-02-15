@@ -127,7 +127,21 @@ Read the full packet and extract:
 - **Implementation Notes** — Gotchas, exact error messages
 </packet-sections>
 
-### 4b. Explore Codebase for Context
+### 4b. Capture Session ID
+
+Record the current Claude Code session ID in the packet frontmatter so the Validate workflow can trace back implementation decisions if needed.
+
+Run via Bash:
+
+```bash
+project_dir=$(pwd | sed 's|/|-|g')
+session_id=$(basename "$(ls -t ~/.claude/projects/${project_dir}/*.jsonl 2>/dev/null | head -1)" .jsonl)
+echo "$session_id"
+```
+
+Then update the packet frontmatter by adding `execute-session: {session_id}` using the Edit tool.
+
+### 4c. Explore Codebase for Context
 
 Before writing tests, gather context about the existing codebase:
 
