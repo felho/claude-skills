@@ -18,8 +18,8 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 
 | Workflow | Trigger | File |
 |----------|---------|------|
-| **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id] [--ahead N] [--auto-check]` | `Workflows/Prepare.md` |
-| **Check** | `/ManageImpStep check <packet>` | `Workflows/Check.md` |
+| **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check]` | `Workflows/Prepare.md` |
+| **Check** | `/ManageImpStep check <packet> [--loop] [--double-check] [--max-cycles N]` | `Workflows/Check.md` |
 | **Execute** | `/ManageImpStep execute <packet>` | `Workflows/Execute.md` |
 | **Validate** | `/ManageImpStep validate <packet>` | `Workflows/Validate.md` |
 | **Fix** | `/ManageImpStep fix <packet> [extra-feedback]` | `Workflows/Fix.md` |
@@ -28,8 +28,8 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 ## Workflow Flow
 
 ```
-PREPARE --ahead --auto-check → (packets created + checked, status: prepared)
-                                       ↓ (later)
+PREPARE --auto-check → CHECK --loop --double-check (via Skill tool)
+                                       ↓
 PREPARE → CHECK (optional) → EXECUTE → VALIDATE ──→ DONE
    │                                      ↑    ↓
    └── creates packet                     └── FIX
@@ -69,7 +69,7 @@ User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md import-sessi
 **Example 3: Full implementation cycle**
 ```
 User: "/ManageImpStep prepare ..." → creates packet
-User: "/ManageImpStep check <packet>" → verifies packet completeness
+User: "/ManageImpStep check <packet>" → verifies packet completeness (single-pass)
 User: "/ManageImpStep execute <packet>" → implements the step
 User: "/ManageImpStep validate <packet>" → runs tests, checks criteria
 User: "/ManageImpStep done <packet>" → marks done, commits (default)
@@ -83,30 +83,28 @@ User: "/ManageImpStep validate <packet>" → PASS, deletes findings file
 User: "/ManageImpStep done <packet>" → marks done, commits
 ```
 
-**Example 5: Prepare-ahead with auto-check**
-```
-User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --ahead 3 --auto-check"
-→ Invokes Prepare workflow in ahead mode
-→ Finds next 3 todo steps, launches parallel agents
-→ Each agent: creates packet + runs check loop until clean
-→ Sets status: prepared on successful steps
-→ Output: "Prepared 3 steps: step-a, step-b, step-c"
-```
-
-**Example 6: Prepare-ahead without auto-check**
-```
-User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --ahead 2"
-→ Finds next 2 todo steps, creates packets in parallel
-→ No check loop — packets may have gaps
-→ Sets status: prepared on successful steps
-```
-
-**Example 7: Single step with auto-check**
+**Example 5: Single step with auto-check**
 ```
 User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --auto-check"
 → Normal single-step prepare
-→ After packet creation, launches background check loop
+→ After packet creation, invokes Check via Skill tool with --loop --double-check
 → Reports check convergence result
+```
+
+**Example 6: Check with iterative loop**
+```
+User: "/ManageImpStep check plans/myplan-steps/phase/step.md --loop"
+→ Iterates: find gaps → fix → re-read → repeat until convergence or 10 iterations
+→ Updates frontmatter with check-confidence: converged and check-iterations: N
+```
+
+**Example 7: Check with full double-check**
+```
+User: "/ManageImpStep check plans/myplan-steps/phase/step.md --loop --double-check"
+→ Phase A: iterative loop until convergence
+→ Phase B: 7-dimension structured evaluation
+→ If any dimension WEAK/MISSING: fix, restart Phase A (max 3 cycles)
+→ Updates frontmatter with check-confidence: double-checked
 ```
 
 **Example 8: Resuming a prepared step**
@@ -115,6 +113,15 @@ User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md"
 → First non-done step has status: prepared
 → Sets it to in-progress, skips packet generation
 → Output: "Using pre-generated packet for step-id. Packet: plans/.../step-id.md"
+```
+
+**Example 9: Parallel preparation (multiple Claude instances)**
+```
+# Run in separate Claude Code instances:
+Instance 1: "/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-a --auto-check"
+Instance 2: "/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-b --auto-check"
+→ Each instance has full Skill tool → hooks fire correctly
+→ Use explicit step-id to avoid conflicts
 ```
 
 ## References

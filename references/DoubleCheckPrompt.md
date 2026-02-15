@@ -1,5 +1,7 @@
 # Double-Check Prompt: Structured Semantic Quality Verification
 
+> **Reference document:** This defines the 7 semantic dimensions used by the Check workflow's `--double-check` mode (Phase B). The primary consumer is `Workflows/Check.md` Step 8B. It can also be used standalone as an agent prompt template (with placeholder substitution).
+
 You are performing an independent semantic quality verification of a step implementation packet. This is a structured double-check — you evaluate the packet against 7 dimensions using a strict evidence-based rubric.
 
 ## Source Documents

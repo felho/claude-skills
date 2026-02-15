@@ -1,9 +1,9 @@
 ---
 description: Create step implementation packet from plan + design doc
-argument-hint: <plan> <design-doc> [phase-id/step-id] [--ahead N] [--auto-check]
-allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Task
+argument-hint: <plan> <design-doc> [phase-id/step-id] [--auto-check]
+allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Skill
 # Note: Write/Edit are ONLY for the packet .md file, never for implementation files
-# Note: Task is for parallel prepare-ahead agents and auto-check loop agents
+# Note: Skill is for invoking Check workflow during auto-check
 hooks:
   PreToolUse:
     - matcher: "Read"
@@ -43,11 +43,10 @@ Create a detailed step implementation packet containing all context needed for i
 
 PLAN_PATH: \$1
 DESIGN_DOC_PATH: \$2
-STEP_ID: \$3 (may be absent if flags are used without a step ID)
-AHEAD_COUNT: from `--ahead N` flag (default: not set — normal mode)
+STEP_ID: \$3 (may be absent)
 AUTO_CHECK: from `--auto-check` flag (default: false)
 
-**Flag parsing:** Scan all arguments for `--ahead N` (integer N) and `--auto-check` (boolean). Flags are combinable and order-independent. Remove flags from positional arguments before processing.
+**Flag parsing:** Scan all arguments for `--auto-check` (boolean). Remove flags from positional arguments before processing.
 
 ## Instructions
 
@@ -78,15 +77,13 @@ Given plan `plans/foo/bar.md` and step `phase-id/step-id`:
 - Multiple in progress: `"Multiple steps in-progress. Fix the plan manually."`
 - Step done: `"Step {step-id} is already done. To re-implement, remove status: done from the HTML comment, then run /ManageImpStep prepare."`
 - Step not found: `"Step not found: {step-id}"`
-- No todo steps for ahead: `"No todo steps remaining to prepare ahead."`
-- Ahead mode with step-id: `"--ahead cannot be combined with a specific step-id. Use --ahead to batch-prepare next N todo steps, or specify a step-id for single prepare."`
 
 ## Workflow
 
 ### 1. Validate Input Files
 
-- If `PLAN_PATH` is empty → STOP and report: `"Usage: /ManageImpStep prepare <plan> <design-doc> [step-id]"`
-- If `DESIGN_DOC_PATH` is empty → STOP and report: `"Usage: /ManageImpStep prepare <plan> <design-doc> [step-id]"`
+- If `PLAN_PATH` is empty → STOP and report: `"Usage: /ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check]"`
+- If `DESIGN_DOC_PATH` is empty → STOP and report: `"Usage: /ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check]"`
 - Read plan file at `PLAN_PATH`
   - If file not found → STOP with error message
 - Read design doc at `DESIGN_DOC_PATH`
@@ -105,117 +102,7 @@ Scan the plan for phases and steps:
 
 If no valid steps found → STOP with "No steps found" error
 
-### 2A. Ahead Mode Branch (when `--ahead` is set)
-
-> If `AHEAD_COUNT` is NOT set, skip to Step 3.
-
-If `STEP_ID` is provided → STOP with "Ahead mode with step-id" error.
-
-<ahead-mode>
-
-**Find steps to prepare:**
-- Filter steps to those with no status attribute (todo only) — skip `prepared`, `in-progress`, `done`
-- Take the first `AHEAD_COUNT` todo steps (in plan order)
-- If zero todo steps → STOP with "No todo steps remaining to prepare ahead."
-- If fewer todo steps than `AHEAD_COUNT`, use what's available
-
-**Launch parallel Task agents:**
-
-For each todo step, launch a Task agent (`subagent_type: general-purpose`) with this prompt:
-
-```
-You are preparing a step packet for an implementation plan.
-
-## Source Documents
-
-Plan file: {PLAN_PATH}
-Design document: {DESIGN_DOC_PATH}
-
-## Step to Prepare
-
-Step ID: {phase-id}/{step-id}
-Step title: {step heading}
-
-## Instructions
-
-1. Read the plan file and design document thoroughly
-2. Extract the step content from the plan (heading + text until next H2/H3)
-3. Gather ALL relevant context from the design document and plan
-4. Compute packet path: {packet-path}
-5. Create the packet markdown file with YAML frontmatter and all sections:
-   - Overview, Step Definition, From Design Document, From Plan (Supporting Sections),
-     Dependencies, Test Cases, Acceptance Criteria, Implementation Notes
-6. Do NOT modify the plan file (status updates are handled by the parent)
-7. Do NOT write code or implementation files — ONLY the packet .md file
-
-{If AUTO_CHECK is true, add:}
-8. After writing the packet, run a double-check cycle (max 3 cycles, i.e., max 2 restarts):
-
-   For each CYCLE (1 to 3):
-
-   Phase A — Freeform Check Loop:
-   a. Re-read the plan and design doc
-   b. Compare against the packet — find ANY missing details
-   c. If findings exist → edit the packet to add missing information, then repeat from (a)
-   d. If zero findings OR 10 iterations reached → Phase A done
-   e. If 10 iterations reached without converging → STOP (set check-confidence: max-iterations)
-
-   Phase B — Structured Double-Check (7 dimensions):
-   Evaluate the packet against these 7 dimensions. For each, quote evidence from the packet and score PASS/WEAK/MISSING:
-
-   1. Technical Sufficiency — types, interfaces, configs, file paths all specified?
-   2. Error Handling Coverage — all error cases with messages and recovery paths?
-   3. Edge Cases & Validation — boundary conditions, validation rules, concurrency?
-   4. Testability — test cases concrete enough to write actual test code?
-   5. Dependency Clarity — inter-step deps and external deps explicit?
-   6. Acceptance Criteria Clarity — each AC specific, measurable, binary (pass/fail)?
-   7. Implementation Completeness — could implementer start with ONLY this packet?
-
-   If ALL 7 PASS → set check-confidence: double-checked, record iterations and restarts → DONE
-   If ANY WEAK/MISSING → fix the packet, then RESTART next cycle (Phase A re-verifies)
-
-   If 3 cycles exhausted → set check-confidence: max-double-checks
-
-9. Update the packet's YAML frontmatter:
-   - check-confidence: double-checked | max-iterations | max-double-checks
-   - check-iterations: total iterations across all Phase A runs
-   - double-check-restarts: 0-2 (only for double-checked / max-double-checks)
-   - Remove check-confidence: unchecked if present
-
-Report back: step ID, packet path, success/failure, check result (confidence, iterations, restarts).
-```
-
-Launch ALL agents in a single message (parallel Task tool calls).
-
-**After all agents complete:**
-
-For each successful agent:
-- Update plan: change `<!-- id: {step-id} -->` to `<!-- id: {step-id} status: prepared -->`
-
-For each failed agent:
-- Leave step as todo (no status change)
-- Collect error message for report
-
-**Report and STOP:**
-
-```
-✅ Prepared {N} steps ahead:
-
-| Step | Packet | Check |
-|------|--------|-------|
-| {step-id-1} | {packet-path-1} | {double-checked (N iters, R restarts) / max-double-checks / max-iterations / skipped / failed} |
-| {step-id-2} | {packet-path-2} | {double-checked (N iters, R restarts) / max-double-checks / max-iterations / skipped / failed} |
-...
-
-{If any failures:}
-⚠️ Failed to prepare: {step-id-x} — {error message}
-```
-
-STOP here. Do not continue to normal mode steps.
-
-</ahead-mode>
-
-### 3. Find Step to Prepare (Normal Mode)
+### 3. Find Step to Prepare
 
 <step-selection>
 **If STEP_ID is provided:**
@@ -389,100 +276,25 @@ Before reporting, verify you followed the rules:
 
 If any check fails → you made a mistake. Undo the implementation work and focus only on the packet.
 
-### 10A. Auto-Check with Double-Check Cycle (when `--auto-check` is set, normal mode only)
+### 10A. Auto-Check (when `--auto-check` is set)
 
 > If `AUTO_CHECK` is false, skip to Step 11.
 
-After packet creation, run a double-check cycle. A "cycle" = Phase A (freeform check loop) + Phase B (structured double-check). If the double-check finds issues, restart with a new cycle (max 3 cycles total, i.e., max 2 restarts).
-
-**Track these variables across cycles:**
-- `total-iterations`: cumulative check iterations across all Phase A runs (read from packet frontmatter after each Phase A)
-- `double-check-restarts`: how many times Phase B triggered a restart (0, 1, or 2)
+After packet creation, delegate to the Check workflow via Skill tool invocation:
 
 ```
-For CYCLE = 1 to 3:
-
-  ── Phase A: Check Loop Agent (fresh context) ──
-
-  Launch Task agent (subagent_type: general-purpose):
-
-    You are checking and improving a step packet for completeness.
-
-    ## Source Documents
-
-    Packet: {PACKET_PATH}
-    Plan file: {PLAN_PATH}
-    Design document: {DESIGN_DOC_PATH}
-
-    ## Instructions
-
-    Run a check loop until the packet is clean or you reach 10 iterations:
-
-    1. Read the packet, plan, and design document thoroughly
-    2. Compare the packet against source documents — find ANY missing details
-       Use this checklist:
-       - All technical specifications from design doc relevant to this step
-       - Error handling requirements and exact error messages
-       - Validation rules, edge cases, type definitions
-       - Test scenarios, acceptance criteria completeness
-       - Cross-references resolved to actual content
-       - Implementation gotchas and warnings
-    3. Stricter threshold: ANY finding, no matter how small, counts as a gap
-    4. If findings exist:
-       - Edit the packet file to add missing information
-       - Do NOT duplicate existing content
-       - Do NOT remove existing content
-       - Increment iteration counter, go to step 1
-    5. If zero findings OR iteration counter >= 10 → stop
-    6. Update the packet's YAML frontmatter:
-       - If converged (zero findings before 10 iterations): set check-confidence: converged and check-iterations: N
-       - If did not converge (10 iterations reached): set check-confidence: max-iterations and check-iterations: 10
-       - Remove check-confidence: unchecked if present
-
-    Report: "Check converged after N iterations" or "Check did not converge after 10 iterations"
-
-  Wait for the Phase A agent to complete.
-
-  After Phase A completes, read packet frontmatter to get check-confidence and check-iterations.
-  Add this cycle's iterations to total-iterations.
-
-  If check-confidence is max-iterations → STOP the cycle loop.
-    Set final confidence: max-iterations, check-iterations: total-iterations.
-    Skip Phase B entirely. (Report will recommend manual review.)
-
-  ── Phase B: Double-Check Agent (fresh context, structured checklist) ──
-
-  Launch Task agent (subagent_type: general-purpose):
-
-    Read the prompt from: ~/.claude/skills/ManageImpStep/references/DoubleCheckPrompt.md
-    Replace placeholders:
-      {PACKET_PATH} = {actual packet path}
-      {PLAN_PATH} = {actual plan path}
-      {DESIGN_DOC_PATH} = {actual design doc path}
-    Follow all instructions in the prompt file.
-
-  Wait for the Phase B agent to complete.
-
-  Parse Phase B result:
-    If ALL 7 dimensions PASS → cycle is complete, packet is verified.
-      Set check-confidence: double-checked
-      Set check-iterations: total-iterations
-      Set double-check-restarts: {number of restarts so far}
-      STOP the cycle loop.
-
-    If ANY dimension was WEAK or MISSING → the agent already fixed the packet.
-      Increment double-check-restarts.
-      RESTART: continue to next cycle (Phase A must re-verify consistency).
-
-If 3 cycles exhausted (double-check never fully passed):
-  Set check-confidence: max-double-checks
-  Set check-iterations: total-iterations
-  Set double-check-restarts: 2
+/ManageImpStep check {PACKET_PATH} --loop --double-check
 ```
 
-After the cycle completes, update the packet frontmatter with the final confidence values.
+This invokes the Check workflow which:
+- Runs Phase A (iterative check loop until convergence or 10 iterations)
+- Runs Phase B (7-dimension structured double-check)
+- Updates packet frontmatter with confidence metadata
+- Hooks fire automatically (nested skill invocation)
 
-Include the cycle result in the report (see Step 11).
+After Check completes, read the packet frontmatter to get the confidence result (`check-confidence`, `check-iterations`, `double-check-restarts`).
+
+Include the confidence result in the Prepare report (Step 11).
 
 ### 11. Report Result
 
@@ -538,3 +350,17 @@ If `--auto-check` was NOT used:
 ```
 
 Replace `{PACKET_PATH}` with the actual packet path created in this run.
+
+## Parallel Preparation
+
+To prepare multiple steps in parallel, run multiple Claude Code instances simultaneously. Each instance runs `/ManageImpStep prepare` with an explicit `step-id` to avoid conflicts:
+
+```
+# Instance 1:
+/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-a --auto-check
+
+# Instance 2:
+/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-b --auto-check
+```
+
+Each instance has the full Skill tool available, so hooks fire correctly. Use explicit `step-id` to avoid two instances picking the same step.

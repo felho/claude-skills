@@ -1,8 +1,9 @@
 ---
 description: Verify packet completeness against source documents, improve if needed
-argument-hint: <packet>
-allowed-tools: Read, Edit, Glob
+argument-hint: <packet> [--loop] [--double-check] [--max-cycles N]
+allowed-tools: Read, Edit, Glob, Bash
 # Note: Edit is ONLY for updating the packet .md file, never for implementation files
+# Note: Bash is ONLY for running validator scripts explicitly
 hooks:
   PreToolUse:
     - matcher: "Read"
@@ -39,6 +40,11 @@ Verify that a step packet contains all information needed for successful impleme
 ## Variables
 
 PACKET_PATH: $1
+LOOP_MODE: from `--loop` flag (default: false)
+DOUBLE_CHECK_MODE: from `--double-check` flag (default: false)
+MAX_CYCLES: from `--max-cycles N` (default: 3, only meaningful with `--double-check`)
+
+**Flag parsing:** Scan all arguments for `--loop` (boolean), `--double-check` (boolean), and `--max-cycles N` (integer). Remove flags from positional arguments before processing.
 
 ## Instructions
 
@@ -62,7 +68,7 @@ PACKET_PATH: $1
 
 ### 1. Validate Input
 
-- If `PACKET_PATH` is empty → STOP and report: `"Usage: /ManageImpStep check <packet>"`
+- If `PACKET_PATH` is empty → STOP and report: `"Usage: /ManageImpStep check <packet> [--loop] [--double-check] [--max-cycles N]"`
 - Read packet file at `PACKET_PATH`
   - If file not found → STOP with "Packet not found" error
 
@@ -198,9 +204,125 @@ For each item marked ❌ Missing in verification:
 - Use the packet's existing section structure
 </update-loop>
 
-### 9. Report Result
+After each packet Edit, run the structure validator explicitly:
 
-**If no changes needed (all issues verified as present):**
+```bash
+uv run $HOME/.claude/hooks/validators/ManageImpStep/packet-structure-validator.py
+```
+
+### 8A. Loop Mode (when `--loop` is set)
+
+> If `LOOP_MODE` is false, skip to Step 8B.
+
+After completing Steps 5-8 once, check if any items were marked ❌ Missing and fixed.
+
+<loop-mode>
+If items were fixed, **repeat Steps 4-8**:
+
+1. Re-read source documents (Step 4) — context may have shifted after edits
+2. Re-analyze packet for remaining gaps (Steps 5-7)
+3. Fix any newly found issues (Step 8)
+4. Repeat until zero findings OR 10 iterations reached
+
+**Track:** `iteration-count` starting at 1 (the initial pass counts as iteration 1).
+
+**Convergence:** If an iteration finds zero issues (all verified as ✅ Found), the loop has converged.
+
+**Max iterations:** If 10 iterations reached without convergence, stop the loop.
+
+At the end of Phase A (loop), run coverage and consistency validators:
+
+```bash
+uv run $HOME/.claude/hooks/validators/ManageImpStep/packet-coverage-validator.py
+uv run $HOME/.claude/hooks/validators/ManageImpStep/cross-step-consistency-validator.py
+```
+</loop-mode>
+
+### 8B. Double-Check Mode (when `--double-check` is set)
+
+> If `DOUBLE_CHECK_MODE` is false, skip to Step 9.
+> Requires `--loop` to also be set (double-check without loop is not supported — if `--double-check` is set without `--loop`, treat as if `--loop` is also set).
+
+After Phase A (loop) converges, run Phase B: structured 7-dimension evaluation.
+
+<double-check-mode>
+**Track across cycles:**
+- `total-iterations`: cumulative check iterations across all Phase A runs
+- `double-check-restarts`: how many times Phase B triggered a restart (0 to MAX_CYCLES-1)
+
+**Phase B — Structured Double-Check (7 dimensions):**
+
+Read the 7 semantic dimensions from `~/.claude/skills/ManageImpStep/references/DoubleCheckPrompt.md`.
+
+For each dimension, evaluate the packet:
+1. **Technical Sufficiency** — types, interfaces, configs, file paths all specified?
+2. **Error Handling Coverage** — all error cases with messages and recovery paths?
+3. **Edge Cases & Validation** — boundary conditions, validation rules, concurrency?
+4. **Testability** — test cases concrete enough to write actual test code?
+5. **Dependency Clarity** — inter-step deps and external deps explicit?
+6. **Acceptance Criteria Clarity** — each AC specific, measurable, binary (pass/fail)?
+7. **Implementation Completeness** — could implementer start with ONLY this packet?
+
+For each dimension:
+- Quote specific evidence from the packet
+- Cross-reference against plan and design doc
+- Score: **PASS** / **WEAK** / **MISSING**
+
+**Report Phase B results in table format:**
+
+```
+| # | Dimension | Score | Evidence / Gap |
+|---|-----------|-------|----------------|
+| 1 | Technical Sufficiency | PASS/WEAK/MISSING | [quote or gap] |
+| 2 | Error Handling Coverage | PASS/WEAK/MISSING | [quote or gap] |
+| 3 | Edge Cases & Validation | PASS/WEAK/MISSING | [quote or gap] |
+| 4 | Testability | PASS/WEAK/MISSING | [quote or gap] |
+| 5 | Dependency Clarity | PASS/WEAK/MISSING | [quote or gap] |
+| 6 | Acceptance Criteria Clarity | PASS/WEAK/MISSING | [quote or gap] |
+| 7 | Implementation Completeness | PASS/WEAK/MISSING | [quote or gap] |
+```
+
+**If ALL 7 PASS:**
+- Phase B is complete. Set confidence to `double-checked`.
+- STOP the cycle loop.
+
+**If ANY WEAK or MISSING:**
+- Fix the packet (add missing content from plan and design doc).
+- Do NOT remove or duplicate existing content.
+- Increment `double-check-restarts`.
+- If `double-check-restarts` < MAX_CYCLES - 1:
+  - RESTART: go back to Phase A (Step 8A loop) to re-verify consistency after fixes.
+  - Then run Phase B again.
+- If MAX_CYCLES cycles exhausted:
+  - Set confidence to `max-double-checks`.
+  - STOP.
+
+**If Phase A did not converge (max-iterations):**
+- Skip Phase B entirely.
+- Set confidence to `max-iterations`.
+- STOP.
+</double-check-mode>
+
+### 9. Update Frontmatter with Confidence Metadata
+
+Update the packet's YAML frontmatter based on the mode used:
+
+**No flags (single-pass):** Do not modify confidence fields. Leave existing `check-confidence` as-is.
+
+**With `--loop` (Phase A only):**
+- If converged: set `check-confidence: converged`, `check-iterations: {N}`
+- If max iterations: set `check-confidence: max-iterations`, `check-iterations: 10`
+
+**With `--loop --double-check` (Phase A + Phase B):**
+- If all 7 pass: set `check-confidence: double-checked`, `check-iterations: {total}`, `double-check-restarts: {R}`
+- If max double-checks: set `check-confidence: max-double-checks`, `check-iterations: {total}`, `double-check-restarts: {MAX_CYCLES - 1}`
+- If max iterations (Phase A never converged): set `check-confidence: max-iterations`, `check-iterations: {total}`
+
+Remove `check-confidence: unchecked` if present (replace with actual result).
+
+### 10. Report Result
+
+**Single-pass mode (no flags) — no changes needed:**
 
 ```
 **Potential Issues Found:**
@@ -220,7 +342,7 @@ All potential issues verified as present in packet. Ready for implementation.
 Next: Run `/ManageImpStep execute {PACKET_PATH}` to implement.
 ```
 
-**If packet was updated (some issues were missing):**
+**Single-pass mode (no flags) — packet was updated:**
 
 ```
 **Potential Issues Found:**
@@ -244,18 +366,85 @@ Added:
 Next: Review changes, then run `/ManageImpStep execute {PACKET_PATH}` to implement.
 ```
 
+**With `--loop` (Phase A only):**
+
+```
+✅ **Packet checked:** {PACKET_PATH}
+
+Check: converged after {N} iterations
+Confidence: converged
+
+Next: Run `/ManageImpStep execute {PACKET_PATH}` to implement.
+```
+
+Or if max iterations:
+
+```
+⚠️ **Packet checked:** {PACKET_PATH}
+
+Check: did not converge after 10 iterations
+Confidence: max-iterations — manual review recommended
+
+Next: Run `/ManageImpStep check {PACKET_PATH}` for manual review, then `/ManageImpStep execute {PACKET_PATH}`.
+```
+
+**With `--loop --double-check` (Phase A + Phase B):**
+
+```
+✅ **Packet checked:** {PACKET_PATH}
+
+Check: double-checked ✅ ({N} total iterations, {R} restarts)
+Confidence: double-checked
+
+| # | Dimension | Score |
+|---|-----------|-------|
+| 1 | Technical Sufficiency | PASS |
+| 2 | Error Handling Coverage | PASS |
+| ... | ... | ... |
+
+Next: Run `/ManageImpStep execute {PACKET_PATH}` to implement.
+```
+
+Or if max double-checks:
+
+```
+⚠️ **Packet checked:** {PACKET_PATH}
+
+Check: max-double-checks ⚠️ ({N} total iterations, {R} restarts)
+Confidence: max-double-checks — consider manual review
+
+Next: Run `/ManageImpStep check {PACKET_PATH}` for manual review.
+```
+
 ## Report
 
 After execution, always include:
 
 1. Status (complete or updated)
 2. If updated: summary of additions
-3. Suggested next command
+3. Confidence info (when `--loop` or `--double-check` used)
+4. Suggested next command
 
 ## Auto-Suggest
 
-After a successful check (whether packet was already complete or was updated), auto-suggest the next command for the user:
+After a successful check, auto-suggest the next command:
 
+If confidence is `double-checked`:
+```
+/ManageImpStep execute {PACKET_PATH} -n
+```
+
+If confidence is `converged`:
+```
+/ManageImpStep execute {PACKET_PATH} -n
+```
+
+If confidence is `max-iterations` or `max-double-checks`:
+```
+/ManageImpStep check {PACKET_PATH} -n
+```
+
+If no flags used (single-pass):
 ```
 /ManageImpStep execute {PACKET_PATH} -n
 ```
