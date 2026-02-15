@@ -1,9 +1,10 @@
 ---
 description: Create step implementation packet from plan + design doc
 argument-hint: <plan> <design-doc> [phase-id/step-id] [--auto-check]
-allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Skill
+allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Skill, Bash
 # Note: Write/Edit are ONLY for the packet .md file, never for implementation files
 # Note: Skill is for invoking Check workflow during auto-check
+# Note: Bash is for git-stage-hunks and git commit during the commit step
 hooks:
   PreToolUse:
     - matcher: "Read"
@@ -284,6 +285,49 @@ After Check completes, read the packet frontmatter to get the confidence result 
 
 Include the confidence result in the Prepare report (Step 10).
 
+### 9B. Commit Prepare Artifacts
+
+After packet creation (and optional auto-check), commit the prepare artifacts so the step claim is persisted.
+
+**What to commit:**
+1. The newly created packet file (new file, simple `git add`)
+2. Only the status-change line in the plan file (selective hunk staging)
+
+**Why selective staging?** The plan file may have other uncommitted changes (from parallel work, other steps, manual edits). We must ONLY commit the hunk that contains this step's status change to `in-progress`.
+
+<commit-flow>
+1. **Stage the packet file:**
+   ```bash
+   git add {PACKET_PATH}
+   ```
+
+2. **Selectively stage the plan file hunk:**
+   ```bash
+   # List hunks to find which one contains our step's status change
+   ~/.claude/tools/git-stage-hunks list {PLAN_PATH}
+   ```
+   - Find the hunk number that contains `<!-- id: {step-id} status: in-progress -->`
+   - Stage ONLY that hunk:
+   ```bash
+   ~/.claude/tools/git-stage-hunks stage {PLAN_PATH} {HUNK_NUMBER}
+   ```
+
+3. **If the plan file has NO other changes** (only our status change), you may use plain `git add {PLAN_PATH}` instead of selective staging.
+
+4. **Commit:**
+   ```bash
+   git commit -m "$(cat <<'EOF'
+   chore({scope}): prepare step {STEP_ID}
+
+   Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+   EOF
+   )"
+   ```
+   - Use the project/app name as scope (e.g., `chore(bob): prepare step foundation/core-deps`)
+</commit-flow>
+
+**Edge case:** If `git-stage-hunks list` shows the plan has no unstaged changes (status was already set earlier and staged), just stage the packet and commit.
+
 ### 10. Report Result
 
 Output:
@@ -293,6 +337,7 @@ Output:
 
 Title: {step heading}
 Packet: {packet-path}
+Commit: {short-hash} chore({scope}): prepare step {step-id}
 {If auto-check ran, show one of:}
   Check: double-checked ✅ (N total iterations, R restarts)
   Check: max-double-checks ⚠️ (N total iterations, 2 restarts — consider manual review)
