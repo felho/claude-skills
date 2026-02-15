@@ -29,9 +29,58 @@ Analyze the prompt to determine its level:
 | Template section, creates new prompts | 6 - Template Metaprompt |
 | Expertise section, self-updating | 7 - Self-Improving |
 
-### 3. Audit Sections
+### 3. Check Required Sections for Level (Top-Down)
 
-Check which sections are present and validate their syntax:
+Using the level identified in Step 2, verify that all required sections are present. Reference table (● = required, ○ = optional, - = not typical):
+
+| Section | L1 | L2 | L3 | L4 | L5 | L6 | L7 |
+|---------|----|----|----|----|----|----|----|
+| Metadata | ○ | ● | ● | ● | ● | ● | ● |
+| Title | ● | ● | ● | ● | ● | ● | ● |
+| Purpose | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Variables | - | ● | ● | ● | ● | ● | ● |
+| Instructions | - | ○ | ○ | ○ | ○ | ○ | ○ |
+| Error Messages | - | - | ● | ● | ● | ○ | ● |
+| Workflow | - | ● | ● | ● | ● | ● | ● |
+| Report | - | ○ | ○ | ○ | ○ | ○ | ○ |
+| Template | - | - | - | - | - | ● | ○ |
+| Expertise | - | - | - | - | - | - | ● |
+| Examples | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+
+For each ● section at the identified level:
+- [ ] Is the section present as a `##` heading with the standard name?
+- If missing → flag as "Missing required section: {name} (required for Level {N})"
+
+### 4. Semantic Placement Check (Bottom-Up)
+
+Scan ALL content in the prompt and classify each block by its semantic role. Then verify it lives under the correct standard section heading.
+
+**Semantic signatures to detect:**
+
+| Semantic Role | Content Signals | Expected Section |
+|---------------|----------------|------------------|
+| **Rules/Constraints** | Bullet-point rules, "must", "never", "always", edge cases, guardrails | `## Instructions` |
+| **Sequential Steps** | Numbered steps, "then", "next", "proceed to", action sequences | `## Workflow` |
+| **Output Format** | Output templates with placeholders, "report:", "output:", result formatting | `## Report` |
+| **Input Declarations** | `VAR: value`, `$1`, `$ARGUMENTS`, path declarations, config values | `## Variables` |
+| **Usage Demos** | "Example:", user input → expected output pairs | `## Examples` |
+| **File References** | File paths, "read this file", "modify this file" | `## Relevant Files` or `## Variables` |
+| **Error Templates** | Error message strings, "Usage: ..." messages | `## Error Messages` |
+
+For each content block identified:
+- [ ] Does it live under the matching standard section heading?
+- If the content is under a non-standard heading (e.g., `## Status Values` instead of `## Instructions`, `## Step 5: Report` instead of `## Report`) → flag as **"Misplaced content"**
+- Provide: what the content is, where it currently lives, and where it should be
+
+**Common misplacement patterns:**
+- ❌ Rules/constraints scattered inside workflow steps → should be in `## Instructions`
+- ❌ Output template inside a `## Step N` heading → should be in `## Report`
+- ❌ File path declarations in a standalone section (e.g., `## Config`) → should be in `## Variables`
+- ❌ STOP conditions only in `## Instructions` with no corresponding `## Error Messages` section (Level 3+)
+
+### 5. Audit Section Syntax
+
+For each present section, validate its syntax:
 
 **Metadata (YAML Frontmatter):**
 - [ ] Has YAML frontmatter with `---` delimiters?
@@ -48,7 +97,8 @@ Check which sections are present and validate their syntax:
 - [ ] Variables are actually used in the workflow?
 
 **Workflow:**
-- [ ] Steps are numbered sequentially (1, 2, 3...)?
+- [ ] Exists as a single `## Workflow` section (not scattered as multiple `## Step N` top-level headings)?
+- [ ] Steps are numbered sequentially (1, 2, 3...) WITHIN the `## Workflow` section?
 - [ ] STOP conditions use correct syntax (see Control Flow Syntax below)?
 - [ ] Loop blocks use correct syntax (see Control Flow Syntax below)?
 - [ ] Steps are actionable and specific (not vague like "process the data")?
@@ -62,11 +112,11 @@ Check which sections are present and validate their syntax:
 - [ ] Output format is specified with template?
 - [ ] Includes all necessary information for the user?
 
-### 4. Validate Control Flow Syntax (Level 3+)
+### 6. Validate Control Flow Syntax (Level 3+)
 
 **CRITICAL: These syntax patterns must be validated exactly.**
 
-#### 4.1 STOP Conditions
+#### 6.1 STOP Conditions
 
 **Correct syntax:**
 ```markdown
@@ -85,7 +135,7 @@ Check which sections are present and validate their syntax:
 - ❌ `→ STOP` (missing error message)
 - ✅ `→ STOP with "error message"` or `→ STOP and report: "message"`
 
-#### 4.2 Loop Blocks
+#### 6.2 Loop Blocks
 
 **Correct syntax:**
 ```markdown
@@ -124,7 +174,7 @@ Loop through X:
 - ❌ Iteration language in code block without loop tag (e.g., pseudocode with "For each file:")
 - ✅ `<file-check-loop>` with "For each file:" context
 
-#### 4.3 Named Blocks (Non-Loop)
+#### 6.3 Named Blocks (Non-Loop)
 
 **For grouping related content (NOT iteration):**
 ```markdown
@@ -143,7 +193,7 @@ Loop through X:
 - `<validation-criteria>` = Named block (grouping)
 - `<validation-loop>` = Loop block (iteration)
 
-#### 4.4 Conditional Statements
+#### 6.4 Conditional Statements
 
 **Correct syntax:**
 ```markdown
@@ -157,7 +207,7 @@ Loop through X:
 - [ ] Condition is clear and testable?
 - [ ] Action is specific?
 
-### 5. Identify Issues
+### 7. Identify Issues
 
 Organize problems by severity:
 
@@ -169,9 +219,11 @@ Organize problems by severity:
 - Mismatched opening/closing tags
 - Tools used but not in `allowed-tools`
 - Workflow steps that can't be executed
+- **Misplaced content** — content semantically belongs to one section but lives under a different/non-standard heading (from Step 4)
+- **Missing required section** for the identified level (from Step 3)
 
 **Medium Priority (structure/clarity):**
-- Missing required sections for the level
+- Missing optional-but-recommended sections for the level
 - Variables not in correct order (dynamic → static)
 - Default values not using standard syntax
 - Loop blocks without iteration context
@@ -183,7 +235,7 @@ Organize problems by severity:
 - Missing Examples section for complex prompts
 - argument-hint not using bracket convention
 
-### 6. Suggest Improvements
+### 8. Suggest Improvements
 
 For each issue found, provide:
 1. **What's wrong** — specific problem
@@ -209,7 +261,7 @@ Fix: Convert pseudocode to proper loop block syntax:
      </git-status-check-loop>
 ```
 
-### 7. Provide Level Upgrade Path (if applicable)
+### 9. Provide Level Upgrade Path (if applicable)
 
 If the prompt could benefit from a higher level:
 
@@ -234,6 +286,18 @@ Provide analysis report:
 
 **Current Level:** <N> - <Level Name>
 **Sections Found:** <list>
+
+### Required Sections (Level <N>)
+
+| Section | Required | Present | Status |
+|---------|----------|---------|--------|
+| <section> | ●/○ | ✅/❌ | <ok/missing> |
+
+### Semantic Placement
+
+| Content | Current Location | Expected Section | Status |
+|---------|-----------------|-----------------|--------|
+| <description> | <where it is> | <where it should be> | ✅/❌ |
 
 ### Syntax Compliance
 
