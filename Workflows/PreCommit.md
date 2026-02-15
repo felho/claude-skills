@@ -49,6 +49,7 @@ When fixing infrastructure issues or other problems mid-task, be careful not to 
 
 - [ ] **One logical change:** Review all modified files — are these ALL part of ONE logical change? Apply the "and also" test: if explaining these changes requires saying "and also" or "separately," split into multiple commits.
 - [ ] **Tests pass**
+- [ ] **Typecheck passes** (`tsc --noEmit` or project-specific command; skip if no `tsconfig.json`)
 - [ ] **Plan updated** (checkboxes, counter, current step)
 - [ ] **Docs sync:** Which docs reference the changed behavior? Check ALL triggers:
   - New command → app's `README.md`
@@ -124,6 +125,7 @@ Before running `git commit`:
 "Pre-commit checklist for [commit message]:
 - [ ] One logical change: [yes/no]
 - [ ] Tests pass: [yes/no/N/A]
+- [ ] Typecheck passes: [yes/no/N/A — no tsconfig.json]
 - [ ] Plan updated: [yes/no/N/A]
 - [ ] Docs sync: [list affected docs OR "None — checked: {files checked}"]
 - [ ] Setup sync: [yes/no/N/A]
