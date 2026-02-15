@@ -121,7 +121,9 @@ If no valid steps found → STOP with "No steps found" error
 
 **If STEP_ID is NOT provided:**
 
-- Find the first step with no status (todo) in plan order — skip `done`, `in-progress`, and `prepared`
+> **⚠️ CRITICAL:** Only `todo` steps (no status attribute) are candidates. You MUST skip ALL steps that have ANY status — `done`, `in-progress`, AND `prepared`. Do NOT treat an `in-progress` step as "the current step to work on" — it was claimed by a previous invocation. Your job is to find the NEXT unclaimed step.
+
+- Scan steps in plan order. Skip every step that has a `status` attribute (`done`, `in-progress`, `prepared`). Select the first step with NO status attribute (todo).
 - If found → this is the step to prepare
   - **Immediately** set status to `in-progress` in plan (change `<!-- id: {step-id} -->` → `<!-- id: {step-id} status: in-progress -->`)
   - This claims the step early, preventing parallel instances from selecting the same step
