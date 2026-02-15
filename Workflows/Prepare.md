@@ -206,6 +206,17 @@ Compute packet path: `{plan-dir}/{plan-name}-steps/{phase-id}/{step-id}.md`
 
 Create parent directories if needed. This is the ONLY directory you should create.
 
+### 7B. Determine Test Strategy
+
+Decide the `test-strategy` frontmatter value based on the step's nature:
+
+| Strategy | When to use | Execute behavior |
+|----------|-------------|-----------------|
+| `tdd` (default) | Step produces application code in `src/` or `packages/` | Write tests first, red-green cycle |
+| `build-verify` | Step is purely config/infrastructure (install deps, create configs, setup tooling) — no `src/` files in deliverables | Skip test creation; verify via build + existing test suite |
+
+**Decision rule:** Look at the Step Definition checkboxes. If ALL deliverables are configuration files (package.json, tsconfig, .gitignore, etc.) or install commands — and NO `src/` or `packages/*/src/` files are created or modified — use `build-verify`. Otherwise use `tdd`.
+
 ### 8. Write Packet Markdown File (NOT implementation!)
 
 Create the packet `.md` file with this structure (this is the ONLY file you write):
@@ -217,6 +228,7 @@ plan: {PLAN_PATH}
 design-doc: {DESIGN_DOC_PATH}
 created: {ISO-8601 timestamp}
 check-confidence: unchecked
+test-strategy: {tdd|build-verify}
 ---
 
 # Step: {phase-id}/{step-id}
