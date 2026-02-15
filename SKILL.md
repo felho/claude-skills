@@ -19,7 +19,7 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 | Workflow | Trigger | File |
 |----------|---------|------|
 | **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check]` | `Workflows/Prepare.md` |
-| **Check** | `/ManageImpStep check <packet> [--loop] [--double-check] [--max-cycles N]` | `Workflows/Check.md` |
+| **Check** | `/ManageImpStep check <packet> [--orchestrate] [--dc-pass] [--loop] [--double-check] [--max-cycles N]` | `Workflows/Check.md` |
 | **Execute** | `/ManageImpStep execute <packet>` | `Workflows/Execute.md` |
 | **Validate** | `/ManageImpStep validate <packet>` | `Workflows/Validate.md` |
 | **Fix** | `/ManageImpStep fix <packet> [extra-feedback]` | `Workflows/Fix.md` |
@@ -28,7 +28,10 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 ## Workflow Flow
 
 ```
-PREPARE --auto-check → CHECK --loop --double-check (via Skill tool)
+PREPARE --auto-check → CHECK --orchestrate (background Task agent)
+                         │
+                         ├── single-pass iterations (background Tasks)
+                         └── dc-pass evaluation (background Task)
                                        ↓
 PREPARE → CHECK (optional) → EXECUTE → VALIDATE ──→ DONE
    │                                      ↑    ↓
@@ -83,28 +86,36 @@ User: "/ManageImpStep validate <packet>" → PASS, deletes findings file
 User: "/ManageImpStep done <packet>" → marks done, commits
 ```
 
-**Example 5: Single step with auto-check**
+**Example 5: Single step with auto-check (background)**
 ```
 User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --auto-check"
 → Normal single-step prepare
-→ After packet creation, invokes Check via Skill tool with --loop --double-check
-→ Reports check convergence result
+→ After packet creation, spawns background Task agent running Check --orchestrate
+→ Reports immediately with background output file path
+→ Check runs asynchronously: single-pass iterations + dc-pass evaluation
 ```
 
-**Example 6: Check with iterative loop**
+**Example 6: Check with orchestrator (iterative + double-check)**
 ```
-User: "/ManageImpStep check plans/myplan-steps/phase/step.md --loop"
-→ Iterates: find gaps → fix → re-read → repeat until convergence or 10 iterations
-→ Updates frontmatter with check-confidence: converged and check-iterations: N
-```
-
-**Example 7: Check with full double-check**
-```
-User: "/ManageImpStep check plans/myplan-steps/phase/step.md --loop --double-check"
-→ Phase A: iterative loop until convergence
-→ Phase B: 7-dimension structured evaluation
+User: "/ManageImpStep check plans/myplan-steps/phase/step.md --orchestrate"
+→ Phase A: spawns single-pass iterations as background Tasks until convergence or 10 iterations
+→ Phase B: spawns dc-pass evaluation as background Task (7 dimensions)
 → If any dimension WEAK/MISSING: fix, restart Phase A (max 3 cycles)
 → Updates frontmatter with check-confidence: double-checked
+```
+
+**Example 7: Check single-pass (manual, one iteration)**
+```
+User: "/ManageImpStep check plans/myplan-steps/phase/step.md"
+→ One pass: read source docs → analyze gaps → fix → report
+→ No looping, no double-check — fast manual review
+```
+
+**Example 7B: Legacy flags (backwards compat)**
+```
+User: "/ManageImpStep check plans/myplan-steps/phase/step.md --loop --double-check"
+→ Maps to --orchestrate internally
+→ Same behavior as Example 6
 ```
 
 **Example 8: Resuming a prepared step**

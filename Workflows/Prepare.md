@@ -1,10 +1,10 @@
 ---
 description: Create step implementation packet from plan + design doc
 argument-hint: <plan> <design-doc> [phase-id/step-id] [--auto-check]
-allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Skill, Bash
+allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Skill, Task
 # Note: Write/Edit are ONLY for the packet .md file, never for implementation files
 # Note: Skill is for invoking Check workflow during auto-check
-# Note: Bash is for git-stage-hunks and git commit during the commit step
+# Note: Task is for spawning background Check orchestrator during auto-check
 hooks:
   PreToolUse:
     - matcher: "Read"
@@ -285,64 +285,27 @@ If any check fails → you made a mistake. Undo the implementation work and focu
 
 > If `AUTO_CHECK` is false, skip to Step 10.
 
-After packet creation, delegate to the Check workflow via Skill tool invocation:
+After packet creation, spawn a **background Task agent** to run the Check orchestrator:
 
 ```
-/ManageImpStep check {PACKET_PATH} --loop --double-check
+Task(
+  description: "Check packet {STEP_ID}",
+  subagent_type: "general-purpose",
+  run_in_background: true,
+  prompt: "Use the Skill tool to invoke: /ManageImpStep check {PACKET_PATH} --orchestrate --max-cycles 3"
+)
 ```
 
-This invokes the Check workflow which:
-- Runs Phase A (iterative check loop until convergence or 10 iterations)
+This spawns a background agent that:
+- Invokes Check in orchestrator mode (which itself spawns single-pass iterations)
+- Runs Phase A (iterative single-pass checks until convergence or 10 iterations)
 - Runs Phase B (7-dimension structured double-check)
 - Updates packet frontmatter with confidence metadata
-- Hooks fire automatically (nested skill invocation)
+- Hooks fire automatically (skill invocation in subagent)
 
-After Check completes, read the packet frontmatter to get the confidence result (`check-confidence`, `check-iterations`, `double-check-restarts`).
+**Do NOT wait for the background agent to complete.** Proceed immediately to Step 10.
 
-Include the confidence result in the Prepare report (Step 10).
-
-### 9B. Commit Prepare Artifacts
-
-After packet creation (and optional auto-check), commit the prepare artifacts so the step claim is persisted.
-
-**What to commit:**
-1. The newly created packet file (new file, simple `git add`)
-2. Only the status-change line in the plan file (selective hunk staging)
-
-**Why selective staging?** The plan file may have other uncommitted changes (from parallel work, other steps, manual edits). We must ONLY commit the hunk that contains this step's status change to `in-progress`.
-
-<commit-flow>
-1. **Stage the packet file:**
-   ```bash
-   git add {PACKET_PATH}
-   ```
-
-2. **Selectively stage the plan file hunk:**
-   ```bash
-   # List hunks to find which one contains our step's status change
-   ~/.claude/tools/git-stage-hunks list {PLAN_PATH}
-   ```
-   - Find the hunk number that contains `<!-- id: {step-id} status: in-progress -->`
-   - Stage ONLY that hunk:
-   ```bash
-   ~/.claude/tools/git-stage-hunks stage {PLAN_PATH} {HUNK_NUMBER}
-   ```
-
-3. **If the plan file has NO other changes** (only our status change), you may use plain `git add {PLAN_PATH}` instead of selective staging.
-
-4. **Commit:**
-   ```bash
-   git commit -m "$(cat <<'EOF'
-   chore({scope}): prepare step {STEP_ID}
-
-   Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
-   EOF
-   )"
-   ```
-   - Use the project/app name as scope (e.g., `chore(bob): prepare step foundation/core-deps`)
-</commit-flow>
-
-**Edge case:** If `git-stage-hunks list` shows the plan has no unstaged changes (status was already set earlier and staged), just stage the packet and commit.
+Note the `output_file` path from the Task result — include it in the report so the user can check progress later.
 
 ### 10. Report Result
 
@@ -353,15 +316,15 @@ Output:
 
 Title: {step heading}
 Packet: {packet-path}
-Commit: {short-hash} chore({scope}): prepare step {step-id}
-{If auto-check ran, show one of:}
-  Check: double-checked ✅ (N total iterations, R restarts)
-  Check: max-double-checks ⚠️ (N total iterations, 2 restarts — consider manual review)
-  Check: max-iterations ❌ (10 iterations, did not converge — manual review needed)
-  Check: converged (N iterations)  ← only if cycle ended at Phase A without Phase B
+{If auto-check was spawned:}
+  Check: running in background (output: {output_file})
+{If auto-check was NOT spawned:}
+  (no check line)
 
-Next: Run `/ManageImpStep execute {packet-path}` to implement.
+Next: Run `/ManageImpStep check {packet-path}` to verify, then `/ManageImpStep execute {packet-path}` to implement.
 ```
+
+**Note:** When auto-check is active, the background agent updates the packet frontmatter asynchronously. The user can check progress by reading the output file, or wait and inspect the packet's `check-confidence` frontmatter field later.
 
 ## Report
 
@@ -369,7 +332,7 @@ After successful preparation, always include:
 
 1. Confirmation message with step ID
 2. Full path to the created packet
-3. Auto-check result with confidence, iterations, and restart count (if `--auto-check` was used)
+3. Background check status with output file path (if `--auto-check` was used)
 4. Suggested next command
 
 **Remember:** You prepared a PACKET (documentation). You did NOT implement anything. Implementation is the user's next step via `/ManageImpStep execute`.
@@ -378,19 +341,10 @@ After successful preparation, always include:
 
 After successful preparation, auto-suggest the next command for the user:
 
-If `--auto-check` was used and confidence is `double-checked`:
+If `--auto-check` was used (check running in background):
 ```
+Check is running in background. When it completes, check the packet's frontmatter for `check-confidence`, then:
 /ManageImpStep execute {PACKET_PATH} -n
-```
-
-If `--auto-check` was used and confidence is `max-double-checks`:
-```
-/ManageImpStep check {PACKET_PATH} -n
-```
-
-If `--auto-check` was used and confidence is `max-iterations`:
-```
-/ManageImpStep check {PACKET_PATH} -n
 ```
 
 If `--auto-check` was NOT used:
