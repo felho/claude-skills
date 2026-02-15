@@ -112,7 +112,7 @@ If no valid steps found → STOP with "No steps found" error
 - If step has `status: prepared`:
   - Set status to `in-progress` in plan (change `status: prepared` → `status: in-progress`)
   - Compute packet path and verify packet exists
-  - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 11
+  - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 10
   - If packet missing → continue to create packet (status is now in-progress)
 - If step has `status: in-progress`:
   - Check if packet exists at expected location
@@ -121,7 +121,9 @@ If no valid steps found → STOP with "No steps found" error
     - If user accepts → continue to create packet (status remains in-progress)
   - If packet doesn't exist → continue to create packet (status remains in-progress)
 - If ANOTHER step has `status: in-progress` → STOP with "Another step in progress" error
-- Otherwise → this is the step to prepare
+- Otherwise (todo) → this is the step to prepare
+  - **Immediately** set status to `in-progress` in plan (change `<!-- id: {step-id} -->` → `<!-- id: {step-id} status: in-progress -->`)
+  - This claims the step early, preventing parallel instances from selecting the same step
 
 **If STEP_ID is NOT provided:**
 
@@ -136,9 +138,11 @@ If no valid steps found → STOP with "No steps found" error
   - If that step has `status: prepared`:
     - Set status to `in-progress` in plan (change `status: prepared` → `status: in-progress`)
     - Compute packet path and verify packet exists
-    - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 11
+    - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 10
     - If packet missing → continue to create packet (status is now in-progress)
   - If that step has no status (todo) → this is the step to prepare
+    - **Immediately** set status to `in-progress` in plan (change `<!-- id: {step-id} -->` → `<!-- id: {step-id} status: in-progress -->`)
+    - This claims the step early, preventing parallel instances from selecting the same step
 - If all steps are done → STOP with message: "All steps are complete."
 </step-selection>
 
@@ -258,14 +262,7 @@ check-confidence: unchecked
 {Gotchas, critical notes, exact error messages, edge cases}
 ```
 
-### 9. Update Plan Status
-
-If step was not already `in-progress`:
-
-- Find the step's `<!-- id: {step-id} -->` comment
-- Change to `<!-- id: {step-id} status: in-progress -->`
-
-### 10. STOP Check (Self-Verification)
+### 9. STOP Check (Self-Verification)
 
 Before reporting, verify you followed the rules:
 
@@ -276,9 +273,9 @@ Before reporting, verify you followed the rules:
 
 If any check fails → you made a mistake. Undo the implementation work and focus only on the packet.
 
-### 10A. Auto-Check (when `--auto-check` is set)
+### 9A. Auto-Check (when `--auto-check` is set)
 
-> If `AUTO_CHECK` is false, skip to Step 11.
+> If `AUTO_CHECK` is false, skip to Step 10.
 
 After packet creation, delegate to the Check workflow via Skill tool invocation:
 
@@ -294,9 +291,9 @@ This invokes the Check workflow which:
 
 After Check completes, read the packet frontmatter to get the confidence result (`check-confidence`, `check-iterations`, `double-check-restarts`).
 
-Include the confidence result in the Prepare report (Step 11).
+Include the confidence result in the Prepare report (Step 10).
 
-### 11. Report Result
+### 10. Report Result
 
 Output:
 
