@@ -122,6 +122,8 @@ If no valid steps found → STOP with "No steps found" error
 **If STEP_ID is NOT provided:**
 
 > **⚠️ CRITICAL:** Only `todo` steps (no status attribute) are candidates. You MUST skip ALL steps that have ANY status — `done`, `in-progress`, AND `prepared`. Do NOT treat an `in-progress` step as "the current step to work on" — it was claimed by a previous invocation. Your job is to find the NEXT unclaimed step.
+>
+> **Anti-pattern trap:** After reading the plan, do NOT investigate `in-progress` or `prepared` steps (check their packets, read their status, glob for related files, etc.). Your ONLY job is to find the first `todo` step. Go directly from parsing → selecting the first todo → announcing it (Step 3A). No detours.
 
 - Scan steps in plan order. Skip every step that has a `status` attribute (`done`, `in-progress`, `prepared`). Select the first step with NO status attribute (todo).
 - If found → this is the step to prepare
