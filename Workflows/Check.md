@@ -1,6 +1,6 @@
 ---
 description: Verify packet completeness against source documents, improve if needed
-argument-hint: <packet> [--loop] [--double-check] [--orchestrate] [--dc-pass] [--max-cycles N]
+argument-hint: <packet> [--loop] [--double-check] [--orchestrate] [--dc-pass] [--max-cycles N] [--debug]
 allowed-tools: Read, Edit, Glob, Bash, Task, Skill
 # Note: Edit is ONLY for updating the packet .md file, never for implementation files
 # Note: Bash is ONLY for running validator scripts explicitly
@@ -43,6 +43,8 @@ Verify that a step packet contains all information needed for successful impleme
 
 PACKET_PATH: $1
 MAX_CYCLES: from `--max-cycles N` (default: 3, only meaningful with `--orchestrate`)
+DEBUG: from `--debug` flag (default: false)
+DEBUG_LOG: `~/.claude/hooks/validators/ManageImpStep/check-debug.log`
 
 **Mode flags** (mutually exclusive — pick the first match):
 
@@ -54,7 +56,13 @@ MAX_CYCLES: from `--max-cycles N` (default: 3, only meaningful with `--orchestra
 | `--double-check` | Legacy | Implies `--orchestrate` (backwards compat) |
 | (none) | Single-pass | One iteration: read, analyze, fix, report |
 
-**Flag parsing:** Scan all arguments for flags. `--loop` and `--double-check` both map to orchestrator mode internally. Remove flags from positional arguments before processing.
+**Modifier flags** (combinable with any mode):
+
+| Flag | Description |
+|------|-------------|
+| `--debug` | Write structured entries to `DEBUG_LOG` at key checkpoints |
+
+**Flag parsing:** Scan all arguments for flags. `--loop` and `--double-check` both map to orchestrator mode internally. `--debug` is independent and can be combined with any mode. Remove flags from positional arguments before processing.
 
 ## Instructions
 
@@ -113,11 +121,29 @@ After shared validation, route to the appropriate mode based on flags:
 
 ---
 
+## Debug Logging (when `--debug` is set)
+
+When `DEBUG` is true, write structured log entries at key checkpoints using Bash:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [MODE] message" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log
+```
+
+Where `MODE` is one of: `single-pass`, `orchestrate`, `dc-pass`.
+
+**All log writes are conditional on `--debug`.** If `--debug` is not set, skip all logging. The specific checkpoints are noted inline in each mode section below (marked with `🔍 DEBUG`).
+
+**Propagation:** When spawning subagents (orchestrator → single-pass, orchestrator → dc-pass), include `--debug` in the Task prompt if `DEBUG` is true.
+
+---
+
 ## Single-Pass Mode (default, no special flags)
 
 One iteration: read source documents, analyze packet for gaps, fix, report.
 
 ### SP-1. Read Source Documents Thoroughly
+
+> 🔍 **DEBUG:** `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [single-pass] Started for {PACKET_PATH}" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
 
 Read the design document at `DESIGN_DOC_PATH`:
 
@@ -215,6 +241,9 @@ For each potential issue, search the packet for evidence. Provide explicit proof
 
 ### SP-5. Update Packet with Missing Information
 
+> 🔍 **DEBUG:** After verification, log a summary: `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [single-pass] Findings: {N} potential, {M} missing, {F} fixed" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
+> Where N = total potential issues, M = confirmed missing, F = items fixed in packet.
+
 For each item marked Missing in verification:
 
 <update-rules>
@@ -290,6 +319,8 @@ Spawns single-pass iterations as background Task agents, monitors convergence, t
 
 ### O-1. Initialize Tracking
 
+> 🔍 **DEBUG:** `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [orchestrate] Started: max-iterations=10, max-cycles={MAX_CYCLES}" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
+
 ```
 total-iterations = 0
 double-check-restarts = 0
@@ -302,12 +333,14 @@ Repeat until convergence or MAX_ITERATIONS:
 
 <phase-a-loop>
 1. **Spawn single-pass iteration:**
+   > 🔍 **DEBUG:** `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [orchestrate] Phase A: spawning iteration {N}" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
+
    ```
    Task(
      description: "Check packet iteration {N}",
      subagent_type: "general-purpose",
      run_in_background: true,
-     prompt: "Use the Skill tool to invoke: /ManageImpStep check {PACKET_PATH}"
+     prompt: "Use the Skill tool to invoke: /ManageImpStep check {PACKET_PATH} {--debug if DEBUG}"
    )
    ```
 
@@ -319,7 +352,9 @@ Repeat until convergence or MAX_ITERATIONS:
    - Compute a simple hash/checksum of the packet content, OR
    - Check the Task agent's output for "Packet is complete" (indicates zero findings)
    - If the single-pass agent reported no changes -> **converged**, exit Phase A
+     > 🔍 **DEBUG:** `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [orchestrate] Phase A converged after {N} iterations" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
    - If changes were made -> spawn another iteration
+     > 🔍 **DEBUG:** `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [orchestrate] Iteration {N}: packet changed, continuing" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
 
 5. **Max iterations guard:** If `total-iterations` >= MAX_ITERATIONS -> exit Phase A as `max-iterations`
 </phase-a-loop>
@@ -330,12 +365,14 @@ Repeat until convergence or MAX_ITERATIONS:
 
 After Phase A converges, spawn a DC-pass evaluation:
 
+> 🔍 **DEBUG:** `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [orchestrate] Phase B: spawning dc-pass" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
+
 ```
 Task(
   description: "DC-pass evaluation",
   subagent_type: "general-purpose",
   run_in_background: true,
-  prompt: "Use the Skill tool to invoke: /ManageImpStep check {PACKET_PATH} --dc-pass"
+  prompt: "Use the Skill tool to invoke: /ManageImpStep check {PACKET_PATH} --dc-pass {--debug if DEBUG}"
 )
 ```
 
@@ -353,6 +390,8 @@ Wait for completion. Read the packet frontmatter for dimension scores.
     - Set confidence to `max-double-checks`, STOP
 
 ### O-4. Update Frontmatter with Confidence Metadata
+
+> 🔍 **DEBUG:** `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [orchestrate] Done: {confidence} ({total-iterations} iterations, {double-check-restarts} restarts)" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
 
 Update the packet's YAML frontmatter:
 
@@ -420,6 +459,9 @@ Read the design document at `DESIGN_DOC_PATH` and the plan file at `PLAN_PATH`.
 Read the 7 semantic dimensions from `~/.claude/skills/ManageImpStep/references/DoubleCheckPrompt.md`.
 
 ### DC-3. Evaluate 7 Dimensions
+
+> 🔍 **DEBUG:** After evaluation, log scores: `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [dc-pass] Scores: tech={S1} err={S2} edge={S3} test={S4} dep={S5} ac={S6} impl={S7}" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
+> Where S1-S7 are PASS/WEAK/MISSING for each dimension in order.
 
 For each dimension, evaluate the packet:
 

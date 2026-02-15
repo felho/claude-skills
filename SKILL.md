@@ -18,8 +18,8 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 
 | Workflow | Trigger | File |
 |----------|---------|------|
-| **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check]` | `Workflows/Prepare.md` |
-| **Check** | `/ManageImpStep check <packet> [--orchestrate] [--dc-pass] [--loop] [--double-check] [--max-cycles N]` | `Workflows/Check.md` |
+| **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check] [--debug]` | `Workflows/Prepare.md` |
+| **Check** | `/ManageImpStep check <packet> [--orchestrate] [--dc-pass] [--loop] [--double-check] [--max-cycles N] [--debug]` | `Workflows/Check.md` |
 | **Execute** | `/ManageImpStep execute <packet>` | `Workflows/Execute.md` |
 | **Validate** | `/ManageImpStep validate <packet>` | `Workflows/Validate.md` |
 | **Fix** | `/ManageImpStep fix <packet> [extra-feedback]` | `Workflows/Fix.md` |
@@ -133,6 +133,17 @@ Instance 1: "/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-a 
 Instance 2: "/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-b --auto-check"
 → Each instance has full Skill tool → hooks fire correctly
 → Use explicit step-id to avoid conflicts
+```
+
+**Example 10: Debug mode (visibility into check pipeline)**
+```
+# Terminal 1: watch the debug log
+tail -f ~/.claude/hooks/validators/ManageImpStep/check-debug.log
+
+# Terminal 2: run prepare with debug
+User: "/ManageImpStep prepare plans/myplan.md docs/design.md --auto-check --debug"
+→ Debug log shows: [prepare] Auto-check spawned, [orchestrate] Started, [single-pass] iterations, [dc-pass] scores
+→ Cross-reference timestamps with packet-structure-validator.log to verify hooks fired
 ```
 
 ## References

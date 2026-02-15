@@ -1,7 +1,8 @@
 ---
 description: Create step implementation packet from plan + design doc
-argument-hint: <plan> <design-doc> [phase-id/step-id] [--auto-check]
-allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Skill, Task
+argument-hint: <plan> <design-doc> [phase-id/step-id] [--auto-check] [--debug]
+allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Skill, Task, Bash
+# Note: Bash is ONLY for debug logging (appending to check-debug.log)
 # Note: Write/Edit are ONLY for the packet .md file, never for implementation files
 # Note: Skill is for invoking Check workflow during auto-check
 # Note: Task is for spawning background Check orchestrator during auto-check
@@ -46,8 +47,10 @@ PLAN_PATH: \$1
 DESIGN_DOC_PATH: \$2
 STEP_ID: \$3 (may be absent)
 AUTO_CHECK: from `--auto-check` flag (default: false)
+DEBUG: from `--debug` flag (default: false)
+DEBUG_LOG: `~/.claude/hooks/validators/ManageImpStep/check-debug.log`
 
-**Flag parsing:** Scan all arguments for `--auto-check` (boolean). Remove flags from positional arguments before processing.
+**Flag parsing:** Scan all arguments for `--auto-check` and `--debug` (both boolean). Remove flags from positional arguments before processing.
 
 ## Instructions
 
@@ -287,12 +290,14 @@ If any check fails → you made a mistake. Undo the implementation work and focu
 
 After packet creation, spawn a **background Task agent** to run the Check orchestrator:
 
+> 🔍 **DEBUG** (if `DEBUG` is true): Before spawning, log: `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [prepare] Auto-check spawned for {STEP_ID}" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
+
 ```
 Task(
   description: "Check packet {STEP_ID}",
   subagent_type: "general-purpose",
   run_in_background: true,
-  prompt: "Use the Skill tool to invoke: /ManageImpStep check {PACKET_PATH} --orchestrate --max-cycles 3"
+  prompt: "Use the Skill tool to invoke: /ManageImpStep check {PACKET_PATH} --orchestrate --max-cycles 3 {--debug if DEBUG}"
 )
 ```
 
