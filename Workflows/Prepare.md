@@ -73,9 +73,8 @@ Given plan `plans/foo/bar.md` and step `phase-id/step-id`:
 - Plan not found: `"Plan file not found: {path}"`
 - Design doc not found: `"Design document not found: {path}"`
 - No steps in plan: `"No steps found in plan (steps require H3 heading + <!-- id: ... --> comment)"`
-- Another step in progress: `"Step {other-step-id} is already in-progress. Finish or abandon it first (remove status: in-progress from the plan)."`
-- Multiple in progress: `"Multiple steps in-progress. Fix the plan manually."`
 - Step done: `"Step {step-id} is already done. To re-implement, remove status: done from the HTML comment, then run /ManageImpStep prepare."`
+- All complete: `"All steps are complete (or in-progress by other instances)."`
 - Step not found: `"Step not found: {step-id}"`
 
 ## Workflow
@@ -109,41 +108,23 @@ If no valid steps found → STOP with "No steps found" error
 - Find the step matching `STEP_ID` (format: `phase-id/step-id`)
 - If not found → STOP with "Step not found" error
 - If step has `status: done` → STOP with "Step already done" error
-- If step has `status: prepared`:
-  - Set status to `in-progress` in plan (change `status: prepared` → `status: in-progress`)
-  - Compute packet path and verify packet exists
-  - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 10
-  - If packet missing → continue to create packet (status is now in-progress)
-- If step has `status: in-progress`:
-  - Check if packet exists at expected location
+- If step has `status: in-progress` or `status: prepared`:
+  - Compute packet path and check if packet exists
   - If packet exists → Ask user: "Packet already exists. Overwrite?"
     - If user declines → STOP (no changes)
-    - If user accepts → continue to create packet (status remains in-progress)
-  - If packet doesn't exist → continue to create packet (status remains in-progress)
-- If ANOTHER step has `status: in-progress` → STOP with "Another step in progress" error
+    - If user accepts → continue to create packet
+  - If packet doesn't exist → continue to create packet
+  - Ensure status is `in-progress` in plan (change if needed)
 - Otherwise (todo) → this is the step to prepare
   - **Immediately** set status to `in-progress` in plan (change `<!-- id: {step-id} -->` → `<!-- id: {step-id} status: in-progress -->`)
-  - This claims the step early, preventing parallel instances from selecting the same step
 
 **If STEP_ID is NOT provided:**
 
-- Count steps with `status: in-progress`
-- If multiple in-progress → STOP with "Multiple steps in-progress" error
-- If exactly one in-progress:
-  - Check if packet exists
-  - If packet exists → Report step info and packet path, then STOP with message: "Step {step-id} is in progress. Run `/ManageImpStep execute {packet-path}` to continue implementation."
-  - If packet missing → this is the step to prepare (will create packet, status remains in-progress)
-- If none in-progress:
-  - Find first non-done step in plan order
-  - If that step has `status: prepared`:
-    - Set status to `in-progress` in plan (change `status: prepared` → `status: in-progress`)
-    - Compute packet path and verify packet exists
-    - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 10
-    - If packet missing → continue to create packet (status is now in-progress)
-  - If that step has no status (todo) → this is the step to prepare
-    - **Immediately** set status to `in-progress` in plan (change `<!-- id: {step-id} -->` → `<!-- id: {step-id} status: in-progress -->`)
-    - This claims the step early, preventing parallel instances from selecting the same step
-- If all steps are done → STOP with message: "All steps are complete."
+- Find the first step with no status (todo) in plan order — skip `done`, `in-progress`, and `prepared`
+- If found → this is the step to prepare
+  - **Immediately** set status to `in-progress` in plan (change `<!-- id: {step-id} -->` → `<!-- id: {step-id} status: in-progress -->`)
+  - This claims the step early, preventing parallel instances from selecting the same step
+- If no todo steps remain → STOP with message: "All steps are complete (or in-progress by other instances)."
 </step-selection>
 
 ### 3A. Announce Selected Step (Early Output)
