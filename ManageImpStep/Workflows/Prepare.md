@@ -1,9 +1,11 @@
 ---
 description: Create step implementation packet from plan + design doc
-argument-hint: <plan> <design-doc> [phase-id/step-id] [--ahead N] [--auto-check]
-allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Task
+argument-hint: <plan> <design-doc> [phase-id/step-id] [--auto-check] [--debug]
+allowed-tools: Read, Write, Edit, Glob, AskUserQuestion, Skill, Task, Bash
+# Note: Bash is ONLY for debug logging (appending to check-debug.log)
 # Note: Write/Edit are ONLY for the packet .md file, never for implementation files
-# Note: Task is for parallel prepare-ahead agents and auto-check loop agents
+# Note: Skill is for invoking Check workflow during auto-check
+# Note: Task is for spawning background Check orchestrator during auto-check
 hooks:
   PreToolUse:
     - matcher: "Read"
@@ -43,11 +45,12 @@ Create a detailed step implementation packet containing all context needed for i
 
 PLAN_PATH: \$1
 DESIGN_DOC_PATH: \$2
-STEP_ID: \$3 (may be absent if flags are used without a step ID)
-AHEAD_COUNT: from `--ahead N` flag (default: not set — normal mode)
+STEP_ID: \$3 (may be absent)
 AUTO_CHECK: from `--auto-check` flag (default: false)
+DEBUG: from `--debug` flag (default: false)
+DEBUG_LOG: `~/.claude/hooks/validators/ManageImpStep/check-debug.log`
 
-**Flag parsing:** Scan all arguments for `--ahead N` (integer N) and `--auto-check` (boolean). Flags are combinable and order-independent. Remove flags from positional arguments before processing.
+**Flag parsing:** Scan all arguments for `--auto-check` and `--debug` (both boolean). Remove flags from positional arguments before processing.
 
 ## Instructions
 
@@ -74,19 +77,16 @@ Given plan `plans/foo/bar.md` and step `phase-id/step-id`:
 - Plan not found: `"Plan file not found: {path}"`
 - Design doc not found: `"Design document not found: {path}"`
 - No steps in plan: `"No steps found in plan (steps require H3 heading + <!-- id: ... --> comment)"`
-- Another step in progress: `"Step {other-step-id} is already in-progress. Finish or abandon it first (remove status: in-progress from the plan)."`
-- Multiple in progress: `"Multiple steps in-progress. Fix the plan manually."`
 - Step done: `"Step {step-id} is already done. To re-implement, remove status: done from the HTML comment, then run /ManageImpStep prepare."`
+- All complete: `"All steps are complete (or in-progress by other instances)."`
 - Step not found: `"Step not found: {step-id}"`
-- No todo steps for ahead: `"No todo steps remaining to prepare ahead."`
-- Ahead mode with step-id: `"--ahead cannot be combined with a specific step-id. Use --ahead to batch-prepare next N todo steps, or specify a step-id for single prepare."`
 
 ## Workflow
 
 ### 1. Validate Input Files
 
-- If `PLAN_PATH` is empty → STOP and report: `"Usage: /ManageImpStep prepare <plan> <design-doc> [step-id]"`
-- If `DESIGN_DOC_PATH` is empty → STOP and report: `"Usage: /ManageImpStep prepare <plan> <design-doc> [step-id]"`
+- If `PLAN_PATH` is empty → STOP and report: `"Usage: /ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check]"`
+- If `DESIGN_DOC_PATH` is empty → STOP and report: `"Usage: /ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check]"`
 - Read plan file at `PLAN_PATH`
   - If file not found → STOP with error message
 - Read design doc at `DESIGN_DOC_PATH`
@@ -105,133 +105,45 @@ Scan the plan for phases and steps:
 
 If no valid steps found → STOP with "No steps found" error
 
-### 2A. Ahead Mode Branch (when `--ahead` is set)
-
-> If `AHEAD_COUNT` is NOT set, skip to Step 3.
-
-If `STEP_ID` is provided → STOP with "Ahead mode with step-id" error.
-
-<ahead-mode>
-
-**Find steps to prepare:**
-- Filter steps to those with no status attribute (todo only) — skip `prepared`, `in-progress`, `done`
-- Take the first `AHEAD_COUNT` todo steps (in plan order)
-- If zero todo steps → STOP with "No todo steps remaining to prepare ahead."
-- If fewer todo steps than `AHEAD_COUNT`, use what's available
-
-**Launch parallel Task agents:**
-
-For each todo step, launch a Task agent (`subagent_type: general-purpose`) with this prompt:
-
-```
-You are preparing a step packet for an implementation plan.
-
-## Source Documents
-
-Plan file: {PLAN_PATH}
-Design document: {DESIGN_DOC_PATH}
-
-## Step to Prepare
-
-Step ID: {phase-id}/{step-id}
-Step title: {step heading}
-
-## Instructions
-
-1. Read the plan file and design document thoroughly
-2. Extract the step content from the plan (heading + text until next H2/H3)
-3. Gather ALL relevant context from the design document and plan
-4. Compute packet path: {packet-path}
-5. Create the packet markdown file with YAML frontmatter and all sections:
-   - Overview, Step Definition, From Design Document, From Plan (Supporting Sections),
-     Dependencies, Test Cases, Acceptance Criteria, Implementation Notes
-6. Do NOT modify the plan file (status updates are handled by the parent)
-7. Do NOT write code or implementation files — ONLY the packet .md file
-
-{If AUTO_CHECK is true, add:}
-8. After writing the packet, run a check loop:
-   a. Re-read the plan and design doc
-   b. Compare against the packet — find ANY missing details
-   c. If findings exist → edit the packet to add missing information, then repeat from (a)
-   d. If zero findings OR 10 iterations reached → stop
-   e. Update the packet's YAML frontmatter confidence fields:
-      - If converged (zero findings before 10 iterations): set `check-confidence: converged` and `check-iterations: N`
-      - If did not converge (10 iterations reached): set `check-confidence: max-iterations` and `check-iterations: 10`
-      - Remove `check-confidence: unchecked` if present
-   f. Report: number of check iterations and whether converged (clean) or not
-
-Report back: step ID, packet path, success/failure, check iterations (if auto-check).
-```
-
-Launch ALL agents in a single message (parallel Task tool calls).
-
-**After all agents complete:**
-
-For each successful agent:
-- Update plan: change `<!-- id: {step-id} -->` to `<!-- id: {step-id} status: prepared -->`
-
-For each failed agent:
-- Leave step as todo (no status change)
-- Collect error message for report
-
-**Report and STOP:**
-
-```
-✅ Prepared {N} steps ahead:
-
-| Step | Packet | Check |
-|------|--------|-------|
-| {step-id-1} | {packet-path-1} | {converged after M iterations / skipped / failed} |
-| {step-id-2} | {packet-path-2} | {converged after M iterations / skipped / failed} |
-...
-
-{If any failures:}
-⚠️ Failed to prepare: {step-id-x} — {error message}
-```
-
-STOP here. Do not continue to normal mode steps.
-
-</ahead-mode>
-
-### 3. Find Step to Prepare (Normal Mode)
+### 3. Find Step to Prepare
 
 <step-selection>
 **If STEP_ID is provided:**
 - Find the step matching `STEP_ID` (format: `phase-id/step-id`)
 - If not found → STOP with "Step not found" error
 - If step has `status: done` → STOP with "Step already done" error
-- If step has `status: prepared`:
-  - Set status to `in-progress` in plan (change `status: prepared` → `status: in-progress`)
-  - Compute packet path and verify packet exists
-  - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 11
-  - If packet missing → continue to create packet (status is now in-progress)
-- If step has `status: in-progress`:
-  - Check if packet exists at expected location
+- If step has `status: in-progress` or `status: prepared`:
+  - Compute packet path and check if packet exists
   - If packet exists → Ask user: "Packet already exists. Overwrite?"
     - If user declines → STOP (no changes)
-    - If user accepts → continue to create packet (status remains in-progress)
-  - If packet doesn't exist → continue to create packet (status remains in-progress)
-- If ANOTHER step has `status: in-progress` → STOP with "Another step in progress" error
-- Otherwise → this is the step to prepare
+    - If user accepts → continue to create packet
+  - If packet doesn't exist → continue to create packet
+  - Ensure status is `in-progress` in plan (change if needed)
+- Otherwise (todo) → this is the step to prepare
+  - **Immediately** set status to `in-progress` in plan (change `<!-- id: {step-id} -->` → `<!-- id: {step-id} status: in-progress -->`)
 
 **If STEP_ID is NOT provided:**
 
-- Count steps with `status: in-progress`
-- If multiple in-progress → STOP with "Multiple steps in-progress" error
-- If exactly one in-progress:
-  - Check if packet exists
-  - If packet exists → Report step info and packet path, then STOP with message: "Step {step-id} is in progress. Run `/ManageImpStep execute {packet-path}` to continue implementation."
-  - If packet missing → this is the step to prepare (will create packet, status remains in-progress)
-- If none in-progress:
-  - Find first non-done step in plan order
-  - If that step has `status: prepared`:
-    - Set status to `in-progress` in plan (change `status: prepared` → `status: in-progress`)
-    - Compute packet path and verify packet exists
-    - If packet exists → Report: "Using pre-generated packet for {step-id}." and skip to Step 11
-    - If packet missing → continue to create packet (status is now in-progress)
-  - If that step has no status (todo) → this is the step to prepare
-- If all steps are done → STOP with message: "All steps are complete."
+> **⚠️ CRITICAL:** Only `todo` steps (no status attribute) are candidates. You MUST skip ALL steps that have ANY status — `done`, `in-progress`, AND `prepared`. Do NOT treat an `in-progress` step as "the current step to work on" — it was claimed by a previous invocation. Your job is to find the NEXT unclaimed step.
+>
+> **Anti-pattern trap:** After reading the plan, do NOT investigate `in-progress` or `prepared` steps (check their packets, read their status, glob for related files, etc.). Your ONLY job is to find the first `todo` step. Go directly from parsing → selecting the first todo → announcing it (Step 3A). No detours.
+
+- Scan steps in plan order. Skip every step that has a `status` attribute (`done`, `in-progress`, `prepared`). Select the first step with NO status attribute (todo).
+- If found → this is the step to prepare
+  - **Immediately** set status to `in-progress` in plan (change `<!-- id: {step-id} -->` → `<!-- id: {step-id} status: in-progress -->`)
+  - This claims the step early, preventing parallel instances from selecting the same step
+- If no todo steps remain → STOP with message: "All steps are complete (or in-progress by other instances)."
 </step-selection>
+
+### 3A. Announce Selected Step (Early Output)
+
+**Immediately after identifying the step**, output a message to the user so they know what's happening:
+
+```
+The next step is `{phase-id}/{step-id}`. Let me read the design doc for relevant context.
+```
+
+This MUST be output **before** reading the design doc (Step 5). The user should see which step was selected while the heavy reading is in progress.
 
 ### 4. Extract Step Content
 
@@ -301,6 +213,17 @@ Compute packet path: `{plan-dir}/{plan-name}-steps/{phase-id}/{step-id}.md`
 
 Create parent directories if needed. This is the ONLY directory you should create.
 
+### 7B. Determine Test Strategy
+
+Decide the `test-strategy` frontmatter value based on the step's nature:
+
+| Strategy | When to use | Execute behavior |
+|----------|-------------|-----------------|
+| `tdd` (default) | Step produces application code in `src/` or `packages/` | Write tests first, red-green cycle |
+| `build-verify` | Step is purely config/infrastructure (install deps, create configs, setup tooling) — no `src/` files in deliverables | Skip test creation; verify via build + existing test suite |
+
+**Decision rule:** Look at the Step Definition checkboxes. If ALL deliverables are configuration files (package.json, tsconfig, .gitignore, etc.) or install commands — and NO `src/` or `packages/*/src/` files are created or modified — use `build-verify`. Otherwise use `tdd`.
+
 ### 8. Write Packet Markdown File (NOT implementation!)
 
 Create the packet `.md` file with this structure (this is the ONLY file you write):
@@ -312,6 +235,7 @@ plan: {PLAN_PATH}
 design-doc: {DESIGN_DOC_PATH}
 created: {ISO-8601 timestamp}
 check-confidence: unchecked
+test-strategy: {tdd|build-verify}
 ---
 
 # Step: {phase-id}/{step-id}
@@ -349,14 +273,7 @@ check-confidence: unchecked
 {Gotchas, critical notes, exact error messages, edge cases}
 ```
 
-### 9. Update Plan Status
-
-If step was not already `in-progress`:
-
-- Find the step's `<!-- id: {step-id} -->` comment
-- Change to `<!-- id: {step-id} status: in-progress -->`
-
-### 10. STOP Check (Self-Verification)
+### 9. STOP Check (Self-Verification)
 
 Before reporting, verify you followed the rules:
 
@@ -367,52 +284,35 @@ Before reporting, verify you followed the rules:
 
 If any check fails → you made a mistake. Undo the implementation work and focus only on the packet.
 
-### 10A. Auto-Check Loop (when `--auto-check` is set, normal mode only)
+### 9A. Auto-Check (when `--auto-check` is set)
 
-> If `AUTO_CHECK` is false, skip to Step 11.
+> If `AUTO_CHECK` is false, skip to Step 10.
 
-After packet creation, launch a Task agent (`subagent_type: general-purpose`) for the check loop:
+After packet creation, spawn a **background Task agent** to run the Check orchestrator:
+
+> 🔍 **DEBUG** (if `DEBUG` is true): Before spawning, log: `echo "[$(date '+%Y-%m-%d %H:%M:%S')] [prepare] Auto-check spawned for {STEP_ID}" >> ~/.claude/hooks/validators/ManageImpStep/check-debug.log`
 
 ```
-You are checking and improving a step packet for completeness.
-
-## Source Documents
-
-Packet: {PACKET_PATH}
-Plan file: {PLAN_PATH}
-Design document: {DESIGN_DOC_PATH}
-
-## Instructions
-
-Run a check loop until the packet is clean or you reach 10 iterations:
-
-1. Read the packet, plan, and design document thoroughly
-2. Compare the packet against source documents — find ANY missing details
-   Use this checklist:
-   - All technical specifications from design doc relevant to this step
-   - Error handling requirements and exact error messages
-   - Validation rules, edge cases, type definitions
-   - Test scenarios, acceptance criteria completeness
-   - Cross-references resolved to actual content
-   - Implementation gotchas and warnings
-3. Stricter threshold: ANY finding, no matter how small, counts as a gap
-4. If findings exist:
-   - Edit the packet file to add missing information
-   - Do NOT duplicate existing content
-   - Do NOT remove existing content
-   - Increment iteration counter, go to step 1
-5. If zero findings OR iteration counter >= 10 → stop
-6. Update the packet's YAML frontmatter confidence fields:
-   - If converged (zero findings before 10 iterations): set `check-confidence: converged` and `check-iterations: N`
-   - If did not converge (10 iterations reached): set `check-confidence: max-iterations` and `check-iterations: 10`
-   - Remove `check-confidence: unchecked` if present
-
-Report: "Check converged after N iterations" or "Check did not converge after 10 iterations — review manually"
+Task(
+  description: "Check packet {STEP_ID}",
+  subagent_type: "general-purpose",
+  run_in_background: true,
+  prompt: "Use the Skill tool to invoke: /ManageImpStep check {PACKET_PATH} --orchestrate --max-cycles 3 {--debug if DEBUG}"
+)
 ```
 
-Wait for the agent to complete and include the check result in the report.
+This spawns a background agent that:
+- Invokes Check in orchestrator mode (which itself spawns single-pass iterations)
+- Runs Phase A (iterative single-pass checks until convergence or 10 iterations)
+- Runs Phase B (7-dimension structured double-check)
+- Updates packet frontmatter with confidence metadata
+- Hooks fire automatically (skill invocation in subagent)
 
-### 11. Report Result
+**Do NOT wait for the background agent to complete.** Proceed immediately to Step 10.
+
+Note the `output_file` path from the Task result — include it in the report so the user can check progress later.
+
+### 10. Report Result
 
 Output:
 
@@ -421,10 +321,15 @@ Output:
 
 Title: {step heading}
 Packet: {packet-path}
-{If auto-check ran: "Check: converged after N iterations" or "Check: did not converge (10 iterations)"}
+{If auto-check was spawned:}
+  Check: running in background (output: {output_file})
+{If auto-check was NOT spawned:}
+  (no check line)
 
-Next: Run `/ManageImpStep execute {packet-path}` to implement.
+Next: Run `/ManageImpStep check {packet-path}` to verify, then `/ManageImpStep execute {packet-path}` to implement.
 ```
+
+**Note:** When auto-check is active, the background agent updates the packet frontmatter asynchronously. The user can check progress by reading the output file, or wait and inspect the packet's `check-confidence` frontmatter field later.
 
 ## Report
 
@@ -432,7 +337,7 @@ After successful preparation, always include:
 
 1. Confirmation message with step ID
 2. Full path to the created packet
-3. Auto-check result (if `--auto-check` was used)
+3. Background check status with output file path (if `--auto-check` was used)
 4. Suggested next command
 
 **Remember:** You prepared a PACKET (documentation). You did NOT implement anything. Implementation is the user's next step via `/ManageImpStep execute`.
@@ -441,8 +346,9 @@ After successful preparation, always include:
 
 After successful preparation, auto-suggest the next command for the user:
 
-If `--auto-check` was used (packet already checked):
+If `--auto-check` was used (check running in background):
 ```
+Check is running in background. When it completes, check the packet's frontmatter for `check-confidence`, then:
 /ManageImpStep execute {PACKET_PATH} -n
 ```
 
@@ -452,3 +358,17 @@ If `--auto-check` was NOT used:
 ```
 
 Replace `{PACKET_PATH}` with the actual packet path created in this run.
+
+## Parallel Preparation
+
+To prepare multiple steps in parallel, run multiple Claude Code instances simultaneously. Each instance runs `/ManageImpStep prepare` with an explicit `step-id` to avoid conflicts:
+
+```
+# Instance 1:
+/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-a --auto-check
+
+# Instance 2:
+/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-b --auto-check
+```
+
+Each instance has the full Skill tool available, so hooks fire correctly. Use explicit `step-id` to avoid two instances picking the same step.

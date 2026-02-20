@@ -141,13 +141,26 @@ Unless `--no-commit` flag is provided:
 
 <commit-flow>
 1. Invoke UseGit skill for proper commit handling
-2. Stage ALL step-related files:
-   - Implementation files (new/modified code)
-   - Plan file (with updated status and checkboxes)
-   - Packet file (step definition)
-   - Any other related files (lock files, configs)
-3. Commit with message: `feat({scope}): complete step {STEP_ID}`
-4. Include standard Co-Authored-By line
+2. Stage implementation files, packet, and related files:
+   ```bash
+   git add {implementation files} {PACKET_PATH} {lock files, configs, etc.}
+   ```
+3. **Selectively stage the plan file** — the plan may have unrelated changes from parallel work or other steps. Only stage hunks belonging to THIS step:
+   ```bash
+   # List all hunks in the plan file
+   ~/.claude/tools/git-stage-hunks list {PLAN_PATH}
+   ```
+   - Identify ALL hunks that belong to this step:
+     - The hunk containing `<!-- id: {step-id} status: done -->` (status change)
+     - Any hunks containing checked checkboxes (`- [x]`) within this step's boundaries
+   - These may be one hunk or multiple hunks depending on step size and surrounding changes
+   - Stage only those hunks:
+   ```bash
+   ~/.claude/tools/git-stage-hunks stage {PLAN_PATH} {HUNK_NUMBERS}
+   ```
+   - **If the plan file has NO other changes** (only this step's changes), you may use plain `git add {PLAN_PATH}` instead of selective staging.
+4. Commit with message: `feat({scope}): complete step {STEP_ID}`
+5. Include standard Co-Authored-By line
 </commit-flow>
 
 If `--no-commit` provided, skip this step.

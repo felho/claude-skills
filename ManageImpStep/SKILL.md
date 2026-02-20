@@ -18,8 +18,8 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 
 | Workflow | Trigger | File |
 |----------|---------|------|
-| **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id] [--ahead N] [--auto-check]` | `Workflows/Prepare.md` |
-| **Check** | `/ManageImpStep check <packet>` | `Workflows/Check.md` |
+| **Prepare** | `/ManageImpStep prepare <plan> <design-doc> [step-id] [--auto-check] [--debug]` | `Workflows/Prepare.md` |
+| **Check** | `/ManageImpStep check <packet> [--orchestrate] [--dc-pass] [--loop] [--double-check] [--max-cycles N] [--debug]` | `Workflows/Check.md` |
 | **Execute** | `/ManageImpStep execute <packet>` | `Workflows/Execute.md` |
 | **Validate** | `/ManageImpStep validate <packet>` | `Workflows/Validate.md` |
 | **Fix** | `/ManageImpStep fix <packet> [extra-feedback]` | `Workflows/Fix.md` |
@@ -28,8 +28,11 @@ Structured workflow for implementing multi-step plans. Creates focused "step pac
 ## Workflow Flow
 
 ```
-PREPARE --ahead --auto-check → (packets created + checked, status: prepared)
-                                       ↓ (later)
+PREPARE --auto-check → CHECK --orchestrate (background Task agent)
+                         │
+                         ├── single-pass iterations (background Tasks)
+                         └── dc-pass evaluation (background Task)
+                                       ↓
 PREPARE → CHECK (optional) → EXECUTE → VALIDATE ──→ DONE
    │                                      ↑    ↓
    └── creates packet                     └── FIX
@@ -69,7 +72,7 @@ User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md import-sessi
 **Example 3: Full implementation cycle**
 ```
 User: "/ManageImpStep prepare ..." → creates packet
-User: "/ManageImpStep check <packet>" → verifies packet completeness
+User: "/ManageImpStep check <packet>" → verifies packet completeness (single-pass)
 User: "/ManageImpStep execute <packet>" → implements the step
 User: "/ManageImpStep validate <packet>" → runs tests, checks criteria
 User: "/ManageImpStep done <packet>" → marks done, commits (default)
@@ -83,30 +86,36 @@ User: "/ManageImpStep validate <packet>" → PASS, deletes findings file
 User: "/ManageImpStep done <packet>" → marks done, commits
 ```
 
-**Example 5: Prepare-ahead with auto-check**
-```
-User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --ahead 3 --auto-check"
-→ Invokes Prepare workflow in ahead mode
-→ Finds next 3 todo steps, launches parallel agents
-→ Each agent: creates packet + runs check loop until clean
-→ Sets status: prepared on successful steps
-→ Output: "Prepared 3 steps: step-a, step-b, step-c"
-```
-
-**Example 6: Prepare-ahead without auto-check**
-```
-User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --ahead 2"
-→ Finds next 2 todo steps, creates packets in parallel
-→ No check loop — packets may have gaps
-→ Sets status: prepared on successful steps
-```
-
-**Example 7: Single step with auto-check**
+**Example 5: Single step with auto-check (background)**
 ```
 User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md --auto-check"
 → Normal single-step prepare
-→ After packet creation, launches background check loop
-→ Reports check convergence result
+→ After packet creation, spawns background Task agent running Check --orchestrate
+→ Reports immediately with background output file path
+→ Check runs asynchronously: single-pass iterations + dc-pass evaluation
+```
+
+**Example 6: Check with orchestrator (iterative + double-check)**
+```
+User: "/ManageImpStep check plans/myplan-steps/phase/step.md --orchestrate"
+→ Phase A: spawns single-pass iterations as background Tasks until convergence or 10 iterations
+→ Phase B: spawns dc-pass evaluation as background Task (7 dimensions)
+→ If any dimension WEAK/MISSING: fix, restart Phase A (max 3 cycles)
+→ Updates frontmatter with check-confidence: double-checked
+```
+
+**Example 7: Check single-pass (manual, one iteration)**
+```
+User: "/ManageImpStep check plans/myplan-steps/phase/step.md"
+→ One pass: read source docs → analyze gaps → fix → report
+→ No looping, no double-check — fast manual review
+```
+
+**Example 7B: Legacy flags (backwards compat)**
+```
+User: "/ManageImpStep check plans/myplan-steps/phase/step.md --loop --double-check"
+→ Maps to --orchestrate internally
+→ Same behavior as Example 6
 ```
 
 **Example 8: Resuming a prepared step**
@@ -115,6 +124,26 @@ User: "/ManageImpStep prepare plans/myplan.md docs/myplan/README.md"
 → First non-done step has status: prepared
 → Sets it to in-progress, skips packet generation
 → Output: "Using pre-generated packet for step-id. Packet: plans/.../step-id.md"
+```
+
+**Example 9: Parallel preparation (multiple Claude instances)**
+```
+# Run in separate Claude Code instances:
+Instance 1: "/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-a --auto-check"
+Instance 2: "/ManageImpStep prepare plans/myplan.md docs/design.md phase/step-b --auto-check"
+→ Each instance has full Skill tool → hooks fire correctly
+→ Use explicit step-id to avoid conflicts
+```
+
+**Example 10: Debug mode (visibility into check pipeline)**
+```
+# Terminal 1: watch the debug log
+tail -f ~/.claude/hooks/validators/ManageImpStep/check-debug.log
+
+# Terminal 2: run prepare with debug
+User: "/ManageImpStep prepare plans/myplan.md docs/design.md --auto-check --debug"
+→ Debug log shows: [prepare] Auto-check spawned, [orchestrate] Started, [single-pass] iterations, [dc-pass] scores
+→ Cross-reference timestamps with packet-structure-validator.log to verify hooks fired
 ```
 
 ## References

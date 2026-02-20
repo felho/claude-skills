@@ -142,13 +142,34 @@ The validators address the deterministic layer. Four concerns remain that need d
 
 **Difficulty:** Medium. The hook can detect `limit` on Read calls to `*design*.md` files, but cannot force the agent to actually process the content it reads.
 
-### 5.2 Semantic Quality
+### 5.2 Semantic Quality ✅ SOLVED
 
-**Problem:** "Is there enough context for implementation?" is inherently subjective and requires domain understanding.
+**Solved:** 2026-02-11
 
-**Current mitigation:** The LLM check (Check.md workflow) handles this. The auto-check loop runs up to 10 iterations.
+**Problem:** "Is there enough context for implementation?" is inherently subjective and requires domain understanding. A single freeform check agent converging to zero findings doesn't guarantee semantic quality — one agent can have blind spots.
 
-**Possible improvement:** A double-check schema where two independent agents check the same packet and findings are compared. Divergence beyond a threshold triggers human review. This trades cost for reliability.
+**Solution:** Double-check cycle after auto-check convergence. A "cycle" = Phase A (existing freeform check loop, fresh context) + Phase B (structured 7-dimension semantic double-check, fresh context). If Phase B finds WEAK/MISSING dimensions, it fixes the packet and restarts (Phase A re-verifies consistency). Max 3 cycles (2 restarts).
+
+**7 Semantic Dimensions (Phase B checklist):**
+1. Technical Sufficiency — types, interfaces, configs, file paths
+2. Error Handling Coverage — error cases, messages, recovery paths
+3. Edge Cases & Validation — boundary conditions, validation rules
+4. Testability — concrete test cases with inputs/outputs/assertions
+5. Dependency Clarity — inter-step and external dependencies
+6. Acceptance Criteria Clarity — specific, measurable, binary ACs
+7. Implementation Completeness — packet is self-contained
+
+**Confidence metadata:**
+- `double-checked` — all 7 dimensions PASS (highest confidence)
+- `max-double-checks` — 3 cycles exhausted, warn but don't block Execute
+- `double-check-restarts: 0-2` — tracks how many restarts were needed
+
+**Components:**
+- `references/DoubleCheckPrompt.md` — standalone prompt template for Phase B agent
+- `packet-structure-validator.py` — extended with `double-checked`, `max-double-checks` enum values and `double-check-restarts` field validation (range 0-2, required for double-check confidences, forbidden otherwise)
+- `check-confidence-validator.py` — `max-double-checks` logs WARNING but passes (don't block Execute since check loop converged each cycle)
+- `Prepare.md` Step 10A — double-check cycle logic for normal mode
+- `Prepare.md` ahead-mode agent prompt — inline 7-dimension checklist (can't nest Task agents)
 
 ### 5.3 Cross-Step Consistency ✅ SOLVED
 

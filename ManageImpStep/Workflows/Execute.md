@@ -62,14 +62,12 @@ PACKET_PATH: $1
 
 ### TDD Workflow
 
-**Tests first, implementation second.** This is non-negotiable.
+**Tests first, implementation second** — unless the packet specifies `test-strategy: build-verify`.
 
-1. Read the Test Cases section in the packet
-2. Write or update test files BEFORE writing implementation
-3. Run tests — they should FAIL (red)
-4. Write implementation code
-5. Run tests — they should PASS (green)
-6. Refactor if needed, keeping tests green
+- **`tdd`:** Full red-green cycle. Read Test Cases → write tests → FAIL → implement → PASS.
+- **`build-verify`:** No new tests. Config/infrastructure steps are validated by build + existing tests.
+
+If `test-strategy` is missing from the packet frontmatter → STOP with error: `"Invalid packet: missing required frontmatter field test-strategy. Re-run /ManageImpStep prepare to regenerate."`
 
 ### Implementation Rules
 
@@ -129,16 +127,32 @@ Read the full packet and extract:
 - **Implementation Notes** — Gotchas, exact error messages
 </packet-sections>
 
-### 4b. Explore Codebase for Context
+### 4b. Capture Session ID
+
+Record the current Claude Code session ID in the packet frontmatter so the Validate workflow can trace back implementation decisions if needed.
+
+Run via Bash:
+
+```bash
+project_dir=$(pwd | sed 's|/|-|g')
+session_id=$(basename "$(ls -t ~/.claude/projects/${project_dir}/*.jsonl 2>/dev/null | head -1)" .jsonl)
+echo "$session_id"
+```
+
+Then update the packet frontmatter by adding `execute-session: {session_id}` using the Edit tool.
+
+### 4c. Explore Codebase for Context
 
 Before writing tests, gather context about the existing codebase:
 
 - Use the **Task tool with `subagent_type=Explore`** to find existing patterns, related files, and dependencies
 - **Do NOT specify `allowed_tools`** on the Task call — Explore agents already have Read/Glob/Grep access by default. Specifying `allowed_tools` triggers an unnecessary permission prompt for the user.
 
-### 5. Write Tests First
+### 5. Test Strategy Gate
 
-Based on Test Cases section:
+Check the packet frontmatter field `test-strategy` (required):
+
+**If `tdd`:** Proceed with full TDD — write tests first, red-green cycle.
 
 <write-tests>
 1. Identify test file location (create if needed)
@@ -150,6 +164,8 @@ Based on Test Cases section:
    - Use `bun run test` or project's test command
    - Tests should fail because implementation doesn't exist yet
 </write-tests>
+
+**If `build-verify`:** Skip test file creation. This step is config/infrastructure — its validation is the build and existing test suite, not new unit tests. Proceed directly to Step 6 (Implement). After implementation, run existing tests + build to confirm nothing broke.
 
 ### 6. Implement the Step
 
