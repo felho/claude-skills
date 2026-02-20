@@ -20,18 +20,21 @@ Before every commit, review staged/unstaged changes and ask: "Is this ONE logica
 - Did I fix/update something unrelated while working? → Separate commit
 - Are these changes about different concerns (e.g., schedule vs. permissions vs. documentation)? → Separate commits
 
-If multiple unrelated changes are present, use `git add -p` to separate them and commit in multiple steps.
+If multiple unrelated changes are present, use `~/.claude/tools/git-stage-hunks` to separate them and commit in multiple steps.
 
-**This applies EVEN within a single file.** If one file contains multiple unrelated changes, split them using `git add -p`.
+**This applies EVEN within a single file.** If one file contains multiple unrelated changes, split them using selective hunk staging.
 
 **Example:**
 ```bash
 # CLAUDE.md has two unrelated changes:
-# 1. Added gdrive to monorepo structure
-# 2. Added design doc guidelines
+# 1. Added gdrive to monorepo structure (hunk 1)
+# 2. Added design doc guidelines (hunk 2)
 
-# Use git add -p to stage only the first hunk
-echo -e "y\nn\n" | git add -p CLAUDE.md
+# List hunks to identify which is which
+~/.claude/tools/git-stage-hunks list CLAUDE.md
+
+# Stage only hunk 1
+~/.claude/tools/git-stage-hunks stage CLAUDE.md 1
 git commit -m "docs(CLAUDE.md): add gdrive CLI to monorepo structure"
 
 # Then stage and commit the rest
@@ -49,6 +52,7 @@ When fixing infrastructure issues or other problems mid-task, be careful not to 
 
 - [ ] **One logical change:** Review all modified files — are these ALL part of ONE logical change? Apply the "and also" test: if explaining these changes requires saying "and also" or "separately," split into multiple commits.
 - [ ] **Tests pass**
+- [ ] **Typecheck passes** (`tsc --noEmit` or project-specific command; skip if no `tsconfig.json`)
 - [ ] **Plan updated** (checkboxes, counter, current step)
 - [ ] **Docs sync:** Which docs reference the changed behavior? Check ALL triggers:
   - New command → app's `README.md`
@@ -124,6 +128,7 @@ Before running `git commit`:
 "Pre-commit checklist for [commit message]:
 - [ ] One logical change: [yes/no]
 - [ ] Tests pass: [yes/no/N/A]
+- [ ] Typecheck passes: [yes/no/N/A — no tsconfig.json]
 - [ ] Plan updated: [yes/no/N/A]
 - [ ] Docs sync: [list affected docs OR "None — checked: {files checked}"]
 - [ ] Setup sync: [yes/no/N/A]

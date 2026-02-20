@@ -85,80 +85,67 @@ git add apps/gdrive/src/index.ts && git commit -m "..."
 
 ### When to use partial staging
 
-When a single file contains changes that belong to **different logical commits**, you MUST stage them separately using patch mode or manual patches.
+When a single file contains changes that belong to **different logical commits**, you MUST stage them separately using `~/.claude/tools/git-stage-hunks`.
 
 **Signs you need partial staging:**
 - One file has both a bug fix and a new feature
 - Documentation updates mixed with code changes
 - A workflow file has both instruction changes and implementation changes
+- A plan file has status changes for multiple steps
 
-### Method 1: Create a patch file for specific lines
+### Primary method: `git-stage-hunks` tool
 
-When you need to stage only specific lines from a file:
+The `~/.claude/tools/git-stage-hunks` tool provides non-interactive selective hunk staging. It replaces both `git add -p` (which requires interactive input) and manual patch file creation (which is error-prone).
 
-```bash
-# 1. Create a patch file with only the lines you want
-cat > /tmp/partial.patch << 'PATCH'
-diff --git a/path/to/file.md b/path/to/file.md
---- a/path/to/file.md
-+++ b/path/to/file.md
-@@ -10,6 +10,8 @@ Some context line
- Another context line
+**Commands:**
+- `~/.claude/tools/git-stage-hunks list <file>` — show all hunks with numbers, +/- stats, preview
+- `~/.claude/tools/git-stage-hunks stage <file> <hunks>` — stage specific hunks (e.g., `1`, `1,3`, `1-3`)
+- `~/.claude/tools/git-stage-hunks diff <file> <hunks>` — dry-run, show the patch without applying
 
-+The specific line(s) you want to add
-+
- More context
-PATCH
+**How it works:** Extracts hunks from `git diff`, assembles a patch with only the selected hunks, and applies it via `git apply --cached`. The remaining hunks stay unstaged.
 
-# 2. Apply patch to staging area only
-git apply --cached /tmp/partial.patch
-
-# 3. Verify what's staged
-git diff --cached path/to/file.md
-
-# 4. Commit the partial change
-git commit -m "docs: add specific change"
-
-# 5. Stage and commit remaining changes
-git add path/to/file.md
-git commit -m "feat: add other changes"
-```
-
-### Method 2: Interactive staging with `git add -p`
-
-For simpler cases where hunks are already separate:
+### Example: Separating two unrelated changes
 
 ```bash
-git add -p path/to/file.md
-# y = stage this hunk
-# n = skip this hunk
-# s = split hunk into smaller hunks
-# e = manually edit the hunk
-```
+# File has: (1) skill reactivation reminder (hunk 1), (2) row calculation docs (hunk 2)
 
-**Note:** `git add -p` works well when changes are in different parts of the file. When changes are interleaved or in the same hunk, use Method 1 (patch file).
+# Step 1: List hunks to see what's where
+~/.claude/tools/git-stage-hunks list Workflows/Example.md
+# Output shows:
+#   Hunk 1: +skill reactivation reminder
+#   Hunk 2: +row calculation docs
 
-### Example: Separating instruction changes from workflow improvements
-
-```bash
-# File has: (1) skill reactivation reminder, (2) row calculation docs
-
-# Commit 1: Stage only the skill reactivation line
-cat > /tmp/skill-reactivation.patch << 'PATCH'
-diff --git a/Workflows/Example.md b/Workflows/Example.md
---- a/Workflows/Example.md
-+++ b/Workflows/Example.md
-@@ -50,6 +50,8 @@ Some existing content
-
-+> **🛑 SKILL REACTIVATION REQUIRED:** Reminder text here.
-+
- More existing content
-PATCH
-
-git apply --cached /tmp/skill-reactivation.patch
+# Step 2: Stage and commit hunk 1
+~/.claude/tools/git-stage-hunks stage Workflows/Example.md 1
 git commit -m "docs: add skill reactivation reminder"
 
-# Commit 2: Stage remaining changes
+# Step 3: Stage and commit remaining changes
 git add Workflows/Example.md
 git commit -m "docs: add row calculation documentation"
+```
+
+### Example: Plan file with multiple step status changes
+
+```bash
+# Plan has status changes for two different steps
+~/.claude/tools/git-stage-hunks list plans/myplan.md
+# Hunk 1: <!-- id: step-a status: in-progress -->
+# Hunk 2: <!-- id: step-b status: done -->
+
+# Stage only the step-a change
+~/.claude/tools/git-stage-hunks stage plans/myplan.md 1
+git add plans/myplan-steps/phase/step-a.md
+git commit -m "chore: prepare step phase/step-a"
+```
+
+### Fallback: Manual patch file
+
+If `git-stage-hunks` cannot handle a case (e.g., changes within the same hunk that need splitting), fall back to creating a manual patch:
+
+```bash
+# 1. Get the full diff
+git diff -- path/to/file.ts > /tmp/full.patch
+# 2. Manually edit to keep only desired lines
+# 3. Apply to staging area
+git apply --cached /tmp/edited.patch
 ```
